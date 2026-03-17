@@ -23,13 +23,16 @@ package kufuli
 import java.util.Arrays
 
 /** Cryptographic key ADT. Cases are `private[kufuli]` to enforce construction via smart
-  * constructors that validate security invariants. Pattern matching on enum cases remains public.
+  * constructors that validate security invariants. External consumers interact with `CryptoKey` as
+  * an opaque handle — construction via companion smart constructors, equality via
+  * [[CryptoKey$.contentEquals]].
   *
   * All byte arrays are defensively cloned on construction to prevent external mutation of key
-  * material. The `==` operator uses reference equality for array fields; use
-  * [[CryptoKey$.contentEquals]] for value-based comparison.
+  * material. `CanEqual` is intentionally omitted: the `==` operator would use reference equality
+  * for array fields, producing silently wrong results. Under strict equality this is a compile
+  * error, forcing use of [[CryptoKey$.contentEquals]] for value-based comparison.
   */
-enum CryptoKey derives CanEqual:
+enum CryptoKey:
   private[kufuli] case Symmetric(bytes: Array[Byte])
   private[kufuli] case RsaPublic(modulus: Array[Byte], exponent: Array[Byte])
   private[kufuli] case RsaPrivate(

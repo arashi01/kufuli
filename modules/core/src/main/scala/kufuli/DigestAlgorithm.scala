@@ -23,3 +23,14 @@ package kufuli
 /** Cryptographic hash algorithm identifiers for digest operations. */
 enum DigestAlgorithm derives CanEqual:
   case Sha1, Sha256, Sha384, Sha512
+
+object DigestAlgorithm:
+
+  extension (alg: DigestAlgorithm)
+
+    /** Byte length of the digest output. */
+    inline def outputLength: Int = inline alg match
+      case Sha1   => 20
+      case Sha256 => 32
+      case Sha384 => 48
+      case Sha512 => 64

@@ -30,7 +30,7 @@ import java.math.BigInteger
   *   - Phase 3: Pre-verification (ECDSA signature validation per CVE-2022-21449, EdDSA signature
   *     length)
   */
-object SecurityChecks:
+private[kufuli] object SecurityChecks:
 
   private val MinRsaKeyBits = 2048
 

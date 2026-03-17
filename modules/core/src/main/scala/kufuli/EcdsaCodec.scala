@@ -26,7 +26,7 @@ import scala.util.boundary.break
 /** ECDSA DER <-> R||S transcoding. Converts between ASN.1 DER-encoded ECDSA signatures and the
   * fixed-length R||S concatenation format used by JWS (RFC 7515).
   */
-object EcdsaCodec:
+private[kufuli] object EcdsaCodec:
 
   private val SequenceTag: Byte = 0x30.toByte
   private val IntegerTag: Byte = 0x02.toByte

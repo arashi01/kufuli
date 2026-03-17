@@ -21,7 +21,7 @@
 package kufuli
 
 /** Constant-time byte array comparison to prevent timing side-channel attacks. */
-object ConstantTime:
+private[kufuli] object ConstantTime:
 
   /** Compares two byte arrays in constant time. On length mismatch, compares `a` against itself
     * (always zero) but returns `false` via the `lenMatch` guard - no short-circuit, no recursion,

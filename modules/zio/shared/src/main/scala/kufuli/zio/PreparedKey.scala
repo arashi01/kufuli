@@ -57,6 +57,9 @@ object PreparedKey extends OpaqueType[PreparedKey[KeyRole]]:
   inline def apply(inline value: PreparedKeyInternal): PreparedKey[KeyRole] = fromUnsafe(value)
   protected inline def validate(value: PreparedKeyInternal): Option[KufuliError] = None
 
+  /** Returns the signing algorithm bound at preparation time. */
+  extension [R <: KeyRole](key: PreparedKey[R]) def algorithm: SignAlgorithm = unwrapKey(key).algorithm
+
   private[zio] def wrapKey[R <: KeyRole](internal: PreparedKeyInternal): PreparedKey[R] = internal
   private[zio] def unwrapKey[R <: KeyRole](key: PreparedKey[R]): PreparedKeyInternal = key
 end PreparedKey

@@ -25,7 +25,7 @@ import java.math.BigInteger
 /** ECDSA signature pre-validation (CVE-2022-21449 mitigations). Must be called before passing a
   * signature to any platform signature engine.
   */
-object EcParams:
+private[kufuli] object EcParams:
 
   /** Validates an ECDSA R||S signature for the given curve. Rejects malformed and trivially
     * forgeable signatures before they reach the platform crypto layer.
