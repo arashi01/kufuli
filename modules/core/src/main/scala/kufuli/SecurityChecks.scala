@@ -89,7 +89,7 @@ object SecurityChecks:
            )
 
       // y^2 mod p == (x^3 + a*x + b) mod p
-      lhs = yInt.modPow(BigInteger.TWO, p)
+      lhs = yInt.modPow(BigInteger.valueOf(2L), p)
       x3 = xInt.modPow(BigInteger.valueOf(3L), p)
       ax = curveParams.a.multiply(xInt).mod(p)
       rhs = x3.add(ax).add(curveParams.b).mod(p)
