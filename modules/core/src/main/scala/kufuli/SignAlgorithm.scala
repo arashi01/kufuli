@@ -41,14 +41,6 @@ end SignAlgorithm
 
 object SignAlgorithm:
 
-  // Family union types for internal pattern matching (private per core_requirements.md ss5.5)
-  private[kufuli] type HmacAlgorithm = HmacSha256.type | HmacSha384.type | HmacSha512.type
-  private[kufuli] type RsaPkcs1Algorithm = RsaPkcs1Sha256.type | RsaPkcs1Sha384.type | RsaPkcs1Sha512.type
-  private[kufuli] type RsaPssAlgorithm = RsaPssSha256.type | RsaPssSha384.type | RsaPssSha512.type
-  private[kufuli] type RsaAlgorithm = RsaPkcs1Algorithm | RsaPssAlgorithm
-  private[kufuli] type EcdsaAlgorithm = EcdsaP256Sha256.type | EcdsaP384Sha384.type | EcdsaP521Sha512.type
-  private[kufuli] type OkpAlgorithm = Ed25519.type | Ed448.type
-
   extension (alg: SignAlgorithm)
 
     /** The digest algorithm used internally by this signing algorithm. Returns `None` for EdDSA

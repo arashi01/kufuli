@@ -40,6 +40,7 @@ import zio.ZIO
 
 import _root_.kufuli.jvm.internal.JcaAlgorithm.*
 import _root_.kufuli.jvm.internal.JvmPreparedKey
+import boilerplate.nullable.*
 
 import kufuli.CryptoKey
 import kufuli.EcCurve
@@ -65,7 +66,6 @@ private def prepare(key: CryptoKey, alg: SignAlgorithm): IO[KufuliError, JvmPrep
   ZIO.fromEither(SecurityChecks.prePrepare(key, alg)).flatMap { _ =>
     ZIO
       .attempt {
-        import scala.language.unsafeNulls
         val jcaKey = toJcaKey(key, alg)
         JvmPreparedKey(jcaKey, alg)
       }
@@ -73,14 +73,13 @@ private def prepare(key: CryptoKey, alg: SignAlgorithm): IO[KufuliError, JvmPrep
   }
 
 private def toJcaKey(key: CryptoKey, alg: SignAlgorithm): java.security.Key =
-  import scala.language.unsafeNulls
   key match
     case CryptoKey.Symmetric(bytes) =>
       SecretKeySpec(bytes, alg.jcaName)
 
     case CryptoKey.RsaPublic(modulus, exponent) =>
       val spec = RSAPublicKeySpec(BigInteger(1, modulus), BigInteger(1, exponent))
-      KeyFactory.getInstance("RSA").generatePublic(spec)
+      KeyFactory.getInstance("RSA").unsafe.generatePublic(spec).unsafe
 
     case CryptoKey.RsaPrivate(modulus, exponent, d, p, q, dp, dq, qi) =>
       val spec = RSAPrivateCrtKeySpec(
@@ -93,42 +92,41 @@ private def toJcaKey(key: CryptoKey, alg: SignAlgorithm): java.security.Key =
         BigInteger(1, dq),
         BigInteger(1, qi)
       )
-      KeyFactory.getInstance("RSA").generatePrivate(spec)
+      KeyFactory.getInstance("RSA").unsafe.generatePrivate(spec).unsafe
 
     case CryptoKey.EcPublic(curve, x, y) =>
       val point = ECPoint(BigInteger(1, x), BigInteger(1, y))
       val ecParams = ecParameterSpec(curve)
       val spec = ECPublicKeySpec(point, ecParams)
-      KeyFactory.getInstance("EC").generatePublic(spec)
+      KeyFactory.getInstance("EC").unsafe.generatePublic(spec).unsafe
 
     case CryptoKey.EcPrivate(curve, x, y, d) =>
       val ecParams = ecParameterSpec(curve)
       val spec = ECPrivateKeySpec(BigInteger(1, d), ecParams)
-      KeyFactory.getInstance("EC").generatePrivate(spec)
+      KeyFactory.getInstance("EC").unsafe.generatePrivate(spec).unsafe
 
     case CryptoKey.OkpPublic(curve, xBytes) =>
       val edPoint = okpBytesToEdECPoint(curve, xBytes)
       val namedSpec = NamedParameterSpec(curve.jwkName)
       val spec = EdECPublicKeySpec(namedSpec, edPoint)
-      KeyFactory.getInstance("EdDSA").generatePublic(spec)
+      KeyFactory.getInstance("EdDSA").unsafe.generatePublic(spec).unsafe
 
     case CryptoKey.OkpPrivate(curve, xBytes, d) =>
       val namedSpec = NamedParameterSpec(curve.jwkName)
       val spec = EdECPrivateKeySpec(namedSpec, d)
-      KeyFactory.getInstance("EdDSA").generatePrivate(spec)
+      KeyFactory.getInstance("EdDSA").unsafe.generatePrivate(spec).unsafe
   end match
 end toJcaKey
 
 // AlgorithmParameters lookup avoids generating a throwaway key pair
 private def ecParameterSpec(curve: EcCurve): ECParameterSpec =
-  import scala.language.unsafeNulls
   val name = curve match
     case EcCurve.P256 => "secp256r1"
     case EcCurve.P384 => "secp384r1"
     case EcCurve.P521 => "secp521r1"
-  val params = java.security.AlgorithmParameters.getInstance("EC")
+  val params = java.security.AlgorithmParameters.getInstance("EC").unsafe
   params.init(ECGenParameterSpec(name))
-  params.getParameterSpec(classOf[ECParameterSpec])
+  params.getParameterSpec(classOf[ECParameterSpec]).unsafe
 
 /** Converts RFC 8032 little-endian public key bytes to a JCA EdECPoint. */
 private def okpBytesToEdECPoint(curve: OkpCurve, xBytes: Array[Byte]): EdECPoint =

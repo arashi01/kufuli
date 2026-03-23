@@ -18,27 +18,10 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-package kufuli.zio
+package kufuli.js.internal
 
-import java.security.MessageDigest
+import kufuli.SignAlgorithm
+import kufuli.zio.PreparedKeyInternal
 
-import zio.IO
-import zio.ZIO
-
-import _root_.kufuli.jvm.internal.JcaAlgorithm.*
-import boilerplate.nullable.*
-
-import kufuli.DigestAlgorithm
-import kufuli.KufuliError
-
-/** JVM (JCA) implementation of [[Digester]]. */
-given Digester with
-
-  extension (data: Array[Byte])
-
-    def digest(algorithm: DigestAlgorithm): IO[KufuliError, Array[Byte]] =
-      ZIO
-        .attempt {
-          MessageDigest.getInstance(algorithm.jcaName).unsafe.digest(data).unsafe
-        }
-        .mapError(_ => KufuliError.DigestFailure("JCA digest computation failed"))
+/** Node.js-specific prepared key wrapping a `KeyObject` and its bound algorithm. */
+final private[kufuli] class NodePreparedKey(val keyObject: KeyObject, val algorithm: SignAlgorithm) extends PreparedKeyInternal

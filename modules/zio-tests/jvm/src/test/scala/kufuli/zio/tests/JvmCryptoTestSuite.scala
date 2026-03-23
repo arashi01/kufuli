@@ -34,7 +34,7 @@ import kufuli.zio.given
 class JvmCryptoTestSuite extends CryptoTestSuite:
 
   private def run[A](zio: ZIO[Any, KufuliError, A]): A =
-    Unsafe.unsafe { implicit u =>
+    Unsafe.unsafe { u ?=>
       Runtime.default.unsafe.run(zio).getOrThrowFiberFailure()
     }
 
@@ -48,7 +48,7 @@ class JvmCryptoTestSuite extends CryptoTestSuite:
     run(data.digest(algorithm))
 
   def prepareSigningError(key: CryptoKey, algorithm: SignAlgorithm): Option[KufuliError] =
-    Unsafe.unsafe { implicit u =>
+    Unsafe.unsafe { u ?=>
       Runtime.default.unsafe.run(key.prepareSigning(algorithm)) match
         case zio.Exit.Failure(cause) => cause.failureOption
         case zio.Exit.Success(_)     => None

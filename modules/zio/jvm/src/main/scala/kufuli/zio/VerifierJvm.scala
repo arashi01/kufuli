@@ -29,6 +29,7 @@ import zio.ZIO
 
 import _root_.kufuli.jvm.internal.JcaAlgorithm.*
 import _root_.kufuli.jvm.internal.JvmPreparedKey
+import boilerplate.nullable.*
 
 import kufuli.ConstantTime
 import kufuli.EcdsaCodec
@@ -53,12 +54,13 @@ given Verifier with
                     sk: SecretKey
                   ) =>
                 hmacVerify(sk, data, signature, alg)
-              case (_, pk: PublicKey) if alg.ecCurve.isDefined =>
-                ZIO.fromEither(EcdsaCodec.concatToDer(signature)).flatMap { derSig =>
-                  jcaVerify(pk, data, derSig, alg)
-                }
               case (_, pk: PublicKey) =>
-                jcaVerify(pk, data, signature, alg)
+                alg.ecCurve match
+                  case Some(_) =>
+                    ZIO.fromEither(EcdsaCodec.concatToDer(signature)).flatMap { derSig =>
+                      jcaVerify(pk, data, derSig, alg)
+                    }
+                  case None => jcaVerify(pk, data, signature, alg)
               case _ => ZIO.fail(KufuliError.VerificationFailure("Unexpected JCA key type for verification"))
           }
         case _ => ZIO.fail(KufuliError.VerificationFailure("Unexpected prepared key type"))
@@ -68,10 +70,9 @@ end given
 private def hmacVerify(key: SecretKey, data: Array[Byte], signature: Array[Byte], alg: SignAlgorithm): IO[KufuliError, Unit] =
   ZIO
     .attempt {
-      import scala.language.unsafeNulls
-      val mac = Mac.getInstance(alg.jcaName)
+      val mac = Mac.getInstance(alg.jcaName).unsafe
       mac.init(key)
-      mac.doFinal(data)
+      mac.doFinal(data).unsafe
     }
     .mapError(_ => KufuliError.VerificationFailure("HMAC computation failed"))
     .flatMap { computed =>
@@ -81,8 +82,7 @@ private def hmacVerify(key: SecretKey, data: Array[Byte], signature: Array[Byte]
 private def jcaVerify(key: PublicKey, data: Array[Byte], signature: Array[Byte], alg: SignAlgorithm): IO[KufuliError, Unit] =
   ZIO
     .attempt {
-      import scala.language.unsafeNulls
-      val sig = java.security.Signature.getInstance(alg.jcaName)
+      val sig = java.security.Signature.getInstance(alg.jcaName).unsafe
       alg.pssParams.foreach(sig.setParameter(_))
       sig.initVerify(key)
       sig.update(data)

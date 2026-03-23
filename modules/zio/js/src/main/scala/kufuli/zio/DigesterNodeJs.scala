@@ -20,18 +20,17 @@
  */
 package kufuli.zio
 
-import java.security.MessageDigest
-
 import zio.IO
 import zio.ZIO
 
-import _root_.kufuli.jvm.internal.JcaAlgorithm.*
-import boilerplate.nullable.*
+import _root_.kufuli.js.internal.ByteConversions
+import _root_.kufuli.js.internal.NodeAlgorithm.*
+import _root_.kufuli.js.internal.NodeCrypto
 
 import kufuli.DigestAlgorithm
 import kufuli.KufuliError
 
-/** JVM (JCA) implementation of [[Digester]]. */
+/** Node.js implementation of [[Digester]]. */
 given Digester with
 
   extension (data: Array[Byte])
@@ -39,6 +38,9 @@ given Digester with
     def digest(algorithm: DigestAlgorithm): IO[KufuliError, Array[Byte]] =
       ZIO
         .attempt {
-          MessageDigest.getInstance(algorithm.jcaName).unsafe.digest(data).unsafe
+          ByteConversions.toByteArray(
+            NodeCrypto.createHash(algorithm.nodeName).update(ByteConversions.toUint8Array(data)).digest()
+          )
         }
-        .mapError(_ => KufuliError.DigestFailure("JCA digest computation failed"))
+        .mapError(_ => KufuliError.DigestFailure("Node.js digest computation failed"))
+end given

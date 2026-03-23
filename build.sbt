@@ -39,6 +39,7 @@ val `kufuli-core` =
     .settings(publishSettings)
     .settings(description := "Pure-Scala cross-platform cryptographic primitives and algorithm models")
     .nativeSettings(nativeSettings)
+    .jsSettings(jsSettings)
     .settings(libraryDependencies += libraries.boilerplate.value)
 
 val `kufuli-zio` =
@@ -53,6 +54,7 @@ val `kufuli-zio` =
     .settings(publishSettings)
     .settings(description := "ZIO typeclass traits and platform-specific crypto backends")
     .nativeSettings(nativeSettings)
+    .jsSettings(jsSettings)
     .settings(libraryDependencies += libraries.zio.value)
 
 val `kufuli-zio-browser` =
@@ -79,6 +81,7 @@ val `kufuli-testkit` =
     .settings(publishSettings)
     .settings(description := "Abstract test suites and RFC vectors for kufuli crypto backends")
     .nativeSettings(nativeSettings)
+    .jsSettings(jsSettings)
     .settings(libraryDependencies += libraries.munit.value)
 
 val `kufuli-zio-tests` =
@@ -93,6 +96,7 @@ val `kufuli-zio-tests` =
     .settings(publish / skip := true)
     .settings(description := "ZIO test instantiation for kufuli testkit")
     .nativeSettings(nativeSettings)
+    .jsSettings(jsSettings)
     .settings(libraryDependencies += libraries.zio.value)
 
 val `kufuli-jvm` =
@@ -138,6 +142,10 @@ val `kufuli-root` =
       `kufuli-js`,
       `kufuli-native`
     )
+
+def jsSettings = List(
+  scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.ESModule) }
+)
 
 def nativeSettings = List(
   dependencyOverrides += "org.scala-native" %%% "test-interface" % buildinfo.BuildInfo.scalaNativeVersion % Test

@@ -18,27 +18,40 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-package kufuli.zio
+package kufuli.zio.tests
 
-import java.security.MessageDigest
-
-import zio.IO
+import zio.Runtime
+import zio.Unsafe
 import zio.ZIO
 
-import _root_.kufuli.jvm.internal.JcaAlgorithm.*
-import boilerplate.nullable.*
-
+import kufuli.CryptoKey
 import kufuli.DigestAlgorithm
 import kufuli.KufuliError
+import kufuli.SignAlgorithm
+import kufuli.testkit.CryptoTestSuite
+import kufuli.zio.given
 
-/** JVM (JCA) implementation of [[Digester]]. */
-given Digester with
+class NodeJsCryptoTestSuite extends CryptoTestSuite:
 
-  extension (data: Array[Byte])
+  private def run[A](zio: ZIO[Any, KufuliError, A]): A =
+    Unsafe.unsafe { u ?=>
+      Runtime.default.unsafe.run(zio).getOrThrowFiberFailure()
+    }
 
-    def digest(algorithm: DigestAlgorithm): IO[KufuliError, Array[Byte]] =
-      ZIO
-        .attempt {
-          MessageDigest.getInstance(algorithm.jcaName).unsafe.digest(data).unsafe
-        }
-        .mapError(_ => KufuliError.DigestFailure("JCA digest computation failed"))
+  def prepareAndSign(key: CryptoKey, algorithm: SignAlgorithm, data: Array[Byte]): Array[Byte] =
+    run(key.prepareSigning(algorithm).flatMap(_.sign(data)))
+
+  def prepareAndVerify(key: CryptoKey, algorithm: SignAlgorithm, data: Array[Byte], signature: Array[Byte]): Unit =
+    run(key.prepareVerifying(algorithm).flatMap(_.verify(data, signature)))
+
+  def computeDigest(data: Array[Byte], algorithm: DigestAlgorithm): Array[Byte] =
+    run(data.digest(algorithm))
+
+  def prepareSigningError(key: CryptoKey, algorithm: SignAlgorithm): Option[KufuliError] =
+    Unsafe.unsafe { u ?=>
+      Runtime.default.unsafe.run(key.prepareSigning(algorithm)) match
+        case zio.Exit.Failure(cause) => cause.failureOption
+        case zio.Exit.Success(_)     => None
+    }
+
+end NodeJsCryptoTestSuite

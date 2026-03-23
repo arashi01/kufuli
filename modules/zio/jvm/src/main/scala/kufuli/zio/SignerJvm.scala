@@ -29,6 +29,7 @@ import zio.ZIO
 
 import _root_.kufuli.jvm.internal.JcaAlgorithm.*
 import _root_.kufuli.jvm.internal.JvmPreparedKey
+import boilerplate.nullable.*
 
 import kufuli.EcdsaCodec
 import kufuli.KufuliError
@@ -48,12 +49,13 @@ given Signer with
           (alg, jvmKey.jcaKey) match
             case (_: SignAlgorithm.HmacSha256.type | _: SignAlgorithm.HmacSha384.type | _: SignAlgorithm.HmacSha512.type, sk: SecretKey) =>
               hmacSign(sk, data, alg)
-            case (_, pk: PrivateKey) if alg.ecCurve.isDefined =>
-              jcaSign(pk, data, alg).flatMap { derSig =>
-                ZIO.fromEither(EcdsaCodec.derToConcat(derSig, alg.ecCurve.get.componentLength))
-              }
             case (_, pk: PrivateKey) =>
-              jcaSign(pk, data, alg)
+              alg.ecCurve match
+                case Some(curve) =>
+                  jcaSign(pk, data, alg).flatMap { derSig =>
+                    ZIO.fromEither(EcdsaCodec.derToConcat(derSig, curve.componentLength))
+                  }
+                case None => jcaSign(pk, data, alg)
             case _ => ZIO.fail(KufuliError.SignatureFailure("Unexpected JCA key type for signing"))
         case _ => ZIO.fail(KufuliError.SignatureFailure("Unexpected prepared key type"))
   end extension
@@ -62,21 +64,19 @@ end given
 private def hmacSign(key: SecretKey, data: Array[Byte], alg: SignAlgorithm): IO[KufuliError, Array[Byte]] =
   ZIO
     .attempt {
-      import scala.language.unsafeNulls
-      val mac = Mac.getInstance(alg.jcaName)
+      val mac = Mac.getInstance(alg.jcaName).unsafe
       mac.init(key)
-      mac.doFinal(data)
+      mac.doFinal(data).unsafe
     }
     .mapError(_ => KufuliError.SignatureFailure("HMAC computation failed"))
 
 private def jcaSign(key: PrivateKey, data: Array[Byte], alg: SignAlgorithm): IO[KufuliError, Array[Byte]] =
   ZIO
     .attempt {
-      import scala.language.unsafeNulls
-      val sig = java.security.Signature.getInstance(alg.jcaName)
+      val sig = java.security.Signature.getInstance(alg.jcaName).unsafe
       alg.pssParams.foreach(sig.setParameter(_))
       sig.initSign(key)
       sig.update(data)
-      sig.sign()
+      sig.sign().unsafe
     }
     .mapError(_ => KufuliError.SignatureFailure("JCA signing failed"))

@@ -18,27 +18,13 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-package kufuli.zio
+package kufuli.js.internal
 
-import java.security.MessageDigest
+import java.util.Base64
 
-import zio.IO
-import zio.ZIO
+/** Base64URL encoding for JWK field values. */
+private[kufuli] object Base64Url:
 
-import _root_.kufuli.jvm.internal.JcaAlgorithm.*
-import boilerplate.nullable.*
-
-import kufuli.DigestAlgorithm
-import kufuli.KufuliError
-
-/** JVM (JCA) implementation of [[Digester]]. */
-given Digester with
-
-  extension (data: Array[Byte])
-
-    def digest(algorithm: DigestAlgorithm): IO[KufuliError, Array[Byte]] =
-      ZIO
-        .attempt {
-          MessageDigest.getInstance(algorithm.jcaName).unsafe.digest(data).unsafe
-        }
-        .mapError(_ => KufuliError.DigestFailure("JCA digest computation failed"))
+  /** Encodes raw bytes to a Base64URL string without padding. */
+  def encode(bytes: Array[Byte]): String =
+    Base64.getUrlEncoder.withoutPadding().encodeToString(bytes)

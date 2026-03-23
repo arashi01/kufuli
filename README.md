@@ -9,7 +9,7 @@ Cross-platform Scala 3 cryptographic library.
 | `kufuli-core` | JVM, JS, Native | Pure ADTs, algorithm models, security primitives |
 | `kufuli-zio` | JVM, JS, Native | ZIO typeclass traits and platform-specific backends |
 | `kufuli-zio-browser` | JS | Web Crypto (SubtleCrypto) backend |
-| `kufuli-testkit` | JVM, JS, Native | Effect-polymorphic test suites |
+| `kufuli-testkit` | JVM, JS, Native | RFC test vectors and abstract test suites |
 
 ## License
 

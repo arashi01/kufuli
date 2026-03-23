@@ -18,27 +18,32 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-package kufuli.zio
+package kufuli.js.internal
 
-import java.security.MessageDigest
+import scala.scalajs.js.typedarray.Uint8Array
 
-import zio.IO
-import zio.ZIO
+/** Conversions between `Array[Byte]` and `Uint8Array`. */
+private[kufuli] object ByteConversions:
 
-import _root_.kufuli.jvm.internal.JcaAlgorithm.*
-import boilerplate.nullable.*
+  /** Converts a Scala `Array[Byte]` to a JS `Uint8Array`. */
+  def toUint8Array(bytes: Array[Byte]): Uint8Array =
+    // scalafix:off DisableSyntax.var, DisableSyntax.while; byte-level array conversion
+    val arr = new Uint8Array(bytes.length)
+    var i = 0
+    while i < bytes.length do
+      arr(i) = (bytes(i) & 0xff).toShort
+      i += 1
+    // scalafix:on
+    arr
 
-import kufuli.DigestAlgorithm
-import kufuli.KufuliError
-
-/** JVM (JCA) implementation of [[Digester]]. */
-given Digester with
-
-  extension (data: Array[Byte])
-
-    def digest(algorithm: DigestAlgorithm): IO[KufuliError, Array[Byte]] =
-      ZIO
-        .attempt {
-          MessageDigest.getInstance(algorithm.jcaName).unsafe.digest(data).unsafe
-        }
-        .mapError(_ => KufuliError.DigestFailure("JCA digest computation failed"))
+  /** Converts a JS `Uint8Array` to a Scala `Array[Byte]`. */
+  def toByteArray(uint8: Uint8Array): Array[Byte] =
+    // scalafix:off DisableSyntax.var, DisableSyntax.while; byte-level array conversion
+    val arr = new Array[Byte](uint8.length)
+    var i = 0
+    while i < uint8.length do
+      arr(i) = uint8(i).toByte
+      i += 1
+    // scalafix:on
+    arr
+end ByteConversions
