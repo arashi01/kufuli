@@ -34,10 +34,14 @@ private[kufuli] object EcParams:
     val sigLen = curve.componentLength * 2
     for
       // Step 1: reject wrong length
-      _ <- Either.cond(signature.length == sigLen, (), KufuliError.InvalidSignature)
+      _ <- Either.cond(
+             signature.length == sigLen,
+             (),
+             KufuliError.InvalidSignature(s"Expected $sigLen bytes for ${curve.jwkName}, got ${signature.length}")
+           )
 
       // Step 2: reject all-zero signatures
-      _ <- Either.cond(!signature.forall(_ == 0.toByte), (), KufuliError.InvalidSignature)
+      _ <- Either.cond(!signature.forall(_ == 0.toByte), (), KufuliError.InvalidSignature("All-zero signature"))
 
       // Steps 3-6: validate R and S components
       mid = sigLen / 2
@@ -46,13 +50,17 @@ private[kufuli] object EcParams:
       n = curve.order
 
       // Step 4: reject R = 0 or S = 0
-      _ <- Either.cond(r.signum() > 0 && s.signum() > 0, (), KufuliError.InvalidSignature)
+      _ <- Either.cond(r.signum() > 0 && s.signum() > 0, (), KufuliError.InvalidSignature("R or S component is zero"))
 
       // Step 5: reject R >= N or S >= N
-      _ <- Either.cond(r.compareTo(n) < 0 && s.compareTo(n) < 0, (), KufuliError.InvalidSignature)
+      _ <- Either.cond(r.compareTo(n) < 0 && s.compareTo(n) < 0, (), KufuliError.InvalidSignature("R or S exceeds curve order"))
 
       // Step 6: reject R mod N = 0 or S mod N = 0 (redundant given steps 4+5, but spec-mandated)
-      _ <- Either.cond(r.mod(n).signum() > 0 && s.mod(n).signum() > 0, (), KufuliError.InvalidSignature)
+      _ <- Either.cond(
+             r.mod(n).signum() > 0 && s.mod(n).signum() > 0,
+             (),
+             KufuliError.InvalidSignature("R or S is a multiple of curve order")
+           )
     yield ()
     end for
   end validateSignature

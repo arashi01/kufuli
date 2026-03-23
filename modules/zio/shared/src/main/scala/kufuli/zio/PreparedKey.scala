@@ -31,7 +31,7 @@ import kufuli.SignAlgorithm
   * Implementations provide the algorithm and a platform-native key handle (JCA Key, Node.js
   * KeyObject, Web Crypto key, or DER bytes).
   */
-private[zio] trait PreparedKeyInternal:
+private[kufuli] trait PreparedKeyInternal:
   def algorithm: SignAlgorithm
 
 /** Opaque wrapper around a platform-specific prepared key, tagged with a phantom
@@ -60,6 +60,6 @@ object PreparedKey extends OpaqueType[PreparedKey[KeyRole]]:
   /** Returns the signing algorithm bound at preparation time. */
   extension [R <: KeyRole](key: PreparedKey[R]) def algorithm: SignAlgorithm = unwrapKey(key).algorithm
 
-  private[zio] def wrapKey[R <: KeyRole](internal: PreparedKeyInternal): PreparedKey[R] = internal
-  private[zio] def unwrapKey[R <: KeyRole](key: PreparedKey[R]): PreparedKeyInternal = key
+  private[kufuli] def wrapKey[R <: KeyRole](internal: PreparedKeyInternal): PreparedKey[R] = internal
+  private[kufuli] def unwrapKey[R <: KeyRole](key: PreparedKey[R]): PreparedKeyInternal = key
 end PreparedKey

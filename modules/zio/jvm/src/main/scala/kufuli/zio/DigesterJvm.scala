@@ -18,24 +18,27 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-package kufuli
+package kufuli.zio
 
-import scala.util.control.NoStackTrace
+import java.security.MessageDigest
 
-/** Error ADT for all kufuli cryptographic operations. */
-enum KufuliError extends Throwable with NoStackTrace derives CanEqual:
-  case UnsupportedAlgorithm(algorithm: String)
-  case InvalidKey(message: String)
-  case InvalidSignature(message: String)
-  case SignatureFailure(message: String)
-  case VerificationFailure(message: String)
-  case DigestFailure(message: String)
+import zio.IO
+import zio.ZIO
 
-  override def getMessage: String = this match
-    case UnsupportedAlgorithm(algorithm) => s"Unsupported algorithm: $algorithm"
-    case InvalidKey(message)             => s"Invalid key: $message"
-    case InvalidSignature(message)       => s"Invalid signature: $message"
-    case SignatureFailure(message)       => s"Signature failure: $message"
-    case VerificationFailure(message)    => s"Verification failure: $message"
-    case DigestFailure(message)          => s"Digest failure: $message"
-end KufuliError
+import _root_.kufuli.jvm.internal.JcaAlgorithm.*
+
+import kufuli.DigestAlgorithm
+import kufuli.KufuliError
+
+/** JVM (JCA) implementation of [[Digester]]. */
+given Digester with
+
+  extension (data: Array[Byte])
+
+    def digest(algorithm: DigestAlgorithm): IO[KufuliError, Array[Byte]] =
+      ZIO
+        .attempt {
+          import scala.language.unsafeNulls
+          MessageDigest.getInstance(algorithm.jcaName).digest(data)
+        }
+        .mapError(_ => KufuliError.DigestFailure("JCA digest computation failed"))

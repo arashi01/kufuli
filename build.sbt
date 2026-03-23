@@ -77,13 +77,14 @@ val `kufuli-testkit` =
     .settings(unitTestSettings)
     .settings(fileHeaderSettings)
     .settings(publishSettings)
-    .settings(description := "Effect-polymorphic test suites for kufuli crypto backends")
+    .settings(description := "Abstract test suites and RFC vectors for kufuli crypto backends")
     .nativeSettings(nativeSettings)
+    .settings(libraryDependencies += libraries.munit.value)
 
 val `kufuli-zio-tests` =
   crossProject(JVMPlatform, JSPlatform, NativePlatform)
     .withoutSuffixFor(JVMPlatform)
-    .crossType(CrossType.Pure)
+    .crossType(CrossType.Full)
     .in(file("modules/zio-tests"))
     .dependsOn(`kufuli-zio`, `kufuli-testkit`)
     .settings(compilerSettings)

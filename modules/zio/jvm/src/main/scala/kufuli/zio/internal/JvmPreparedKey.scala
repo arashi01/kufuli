@@ -18,24 +18,10 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-package kufuli
+package kufuli.jvm.internal
 
-import scala.util.control.NoStackTrace
+import kufuli.SignAlgorithm
+import kufuli.zio.PreparedKeyInternal
 
-/** Error ADT for all kufuli cryptographic operations. */
-enum KufuliError extends Throwable with NoStackTrace derives CanEqual:
-  case UnsupportedAlgorithm(algorithm: String)
-  case InvalidKey(message: String)
-  case InvalidSignature(message: String)
-  case SignatureFailure(message: String)
-  case VerificationFailure(message: String)
-  case DigestFailure(message: String)
-
-  override def getMessage: String = this match
-    case UnsupportedAlgorithm(algorithm) => s"Unsupported algorithm: $algorithm"
-    case InvalidKey(message)             => s"Invalid key: $message"
-    case InvalidSignature(message)       => s"Invalid signature: $message"
-    case SignatureFailure(message)       => s"Signature failure: $message"
-    case VerificationFailure(message)    => s"Verification failure: $message"
-    case DigestFailure(message)          => s"Digest failure: $message"
-end KufuliError
+/** JVM-specific prepared key wrapping a JCA key object and its bound algorithm. */
+final private[kufuli] class JvmPreparedKey(val jcaKey: java.security.Key, val algorithm: SignAlgorithm) extends PreparedKeyInternal

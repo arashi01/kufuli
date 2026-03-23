@@ -181,7 +181,9 @@ private[kufuli] object SecurityChecks:
             Either.cond(
               signature.length == curve.signatureLength,
               (),
-              KufuliError.InvalidSignature
+              KufuliError.InvalidSignature(
+                s"Expected ${curve.signatureLength} bytes for ${curve.jwkName}, got ${signature.length}"
+              )
             )
           case None => Right(())
 

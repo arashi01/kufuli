@@ -20,11 +20,9 @@
  */
 package kufuli
 
-import java.util.Arrays
-
 /** Cryptographic key ADT. Cases are `private[kufuli]` to enforce construction via smart
   * constructors that validate security invariants. External consumers interact with `CryptoKey` as
-  * an opaque handle — construction via companion smart constructors, equality via
+  * an opaque handle - construction via companion smart constructors, equality via
   * [[CryptoKey$.contentEquals]].
   *
   * All byte arrays are defensively cloned on construction to prevent external mutation of key
@@ -91,21 +89,23 @@ object CryptoKey:
   def okpPrivate(curve: OkpCurve, x: Array[Byte], d: Array[Byte]): Either[KufuliError, CryptoKey] =
     SecurityChecks.validateOkpKeyLength(curve, x).map(_ => OkpPrivate(curve, x.clone(), d.clone()))
 
-  /** Value-based equality for two crypto keys. Compares all byte array fields using constant-length
-    * comparison via `java.util.Arrays.equals`.
+  /** Value-based equality for two crypto keys. All byte array fields are compared using
+    * constant-time comparison to prevent timing side-channel leakage of key material.
     */
   def contentEquals(a: CryptoKey, b: CryptoKey): Boolean =
     (a, b) match
-      case (Symmetric(ab), Symmetric(bb))         => Arrays.equals(ab, bb)
-      case (RsaPublic(am, ae), RsaPublic(bm, be)) => Arrays.equals(am, bm) && Arrays.equals(ae, be)
+      case (Symmetric(ab), Symmetric(bb))         => ConstantTime.equals(ab, bb)
+      case (RsaPublic(am, ae), RsaPublic(bm, be)) =>
+        ConstantTime.equals(am, bm) & ConstantTime.equals(ae, be)
       case (RsaPrivate(am, ae, ad, ap, aq, adp, adq, aqi), RsaPrivate(bm, be, bd, bp, bq, bdp, bdq, bqi)) =>
-        Arrays.equals(am, bm) && Arrays.equals(ae, be) && Arrays.equals(ad, bd) &&
-        Arrays.equals(ap, bp) && Arrays.equals(aq, bq) && Arrays.equals(adp, bdp) &&
-        Arrays.equals(adq, bdq) && Arrays.equals(aqi, bqi)
-      case (EcPublic(ac, ax, ay), EcPublic(bc, bx, by))           => ac == bc && Arrays.equals(ax, bx) && Arrays.equals(ay, by)
+        ConstantTime.equals(am, bm) & ConstantTime.equals(ae, be) & ConstantTime.equals(ad, bd) &
+          ConstantTime.equals(ap, bp) & ConstantTime.equals(aq, bq) & ConstantTime.equals(adp, bdp) &
+          ConstantTime.equals(adq, bdq) & ConstantTime.equals(aqi, bqi)
+      case (EcPublic(ac, ax, ay), EcPublic(bc, bx, by)) =>
+        (ac == bc) & ConstantTime.equals(ax, bx) & ConstantTime.equals(ay, by)
       case (EcPrivate(ac, ax, ay, ad), EcPrivate(bc, bx, by, bd)) =>
-        ac == bc && Arrays.equals(ax, bx) && Arrays.equals(ay, by) && Arrays.equals(ad, bd)
-      case (OkpPublic(ac, ax), OkpPublic(bc, bx))           => ac == bc && Arrays.equals(ax, bx)
-      case (OkpPrivate(ac, ax, ad), OkpPrivate(bc, bx, bd)) => ac == bc && Arrays.equals(ax, bx) && Arrays.equals(ad, bd)
+        (ac == bc) & ConstantTime.equals(ax, bx) & ConstantTime.equals(ay, by) & ConstantTime.equals(ad, bd)
+      case (OkpPublic(ac, ax), OkpPublic(bc, bx))           => (ac == bc) & ConstantTime.equals(ax, bx)
+      case (OkpPrivate(ac, ax, ad), OkpPrivate(bc, bx, bd)) => (ac == bc) & ConstantTime.equals(ax, bx) & ConstantTime.equals(ad, bd)
       case _                                                => false
 end CryptoKey

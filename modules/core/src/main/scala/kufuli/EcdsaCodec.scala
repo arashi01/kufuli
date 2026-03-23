@@ -40,27 +40,27 @@ private[kufuli] object EcdsaCodec:
     */
   def derToConcat(der: Array[Byte], componentLength: Int): Either[KufuliError, Array[Byte]] =
     boundary:
-      if der.length < 8 || der(0) != SequenceTag then break(Left(KufuliError.InvalidSignature))
+      if der.length < 8 || der(0) != SequenceTag then break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
 
       // Determine offset past the SEQUENCE length encoding
       val offset =
         if (der(1) & 0xff) < 0x80 then 2
         else if der(1) == LongFormMarker then 3
-        else break(Left(KufuliError.InvalidSignature))
+        else break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
 
       // Validate SEQUENCE structure
       val seqLen = der(offset - 1) & 0xff
-      if seqLen != der.length - offset then break(Left(KufuliError.InvalidSignature))
-      if der(offset) != IntegerTag then break(Left(KufuliError.InvalidSignature))
+      if seqLen != der.length - offset then break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
+      if der(offset) != IntegerTag then break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
 
       // Extract R
       val rLen = der(offset + 1) & 0xff
-      if offset + 2 + rLen >= der.length then break(Left(KufuliError.InvalidSignature))
-      if der(offset + 2 + rLen) != IntegerTag then break(Left(KufuliError.InvalidSignature))
+      if offset + 2 + rLen >= der.length then break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
+      if der(offset + 2 + rLen) != IntegerTag then break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
 
       // Extract S
       val sLen = der(offset + 2 + rLen + 1) & 0xff
-      if seqLen != 2 + rLen + 2 + sLen then break(Left(KufuliError.InvalidSignature))
+      if seqLen != 2 + rLen + 2 + sLen then break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
 
       // Strip leading zero bytes from R
       // scalafix:off DisableSyntax.var, DisableSyntax.while; byte-level DER manipulation
@@ -78,7 +78,8 @@ private[kufuli] object EcdsaCodec:
         sEffLen -= 1
       // scalafix:on
 
-      if rEffLen > componentLength || sEffLen > componentLength then break(Left(KufuliError.InvalidSignature))
+      if rEffLen > componentLength || sEffLen > componentLength then
+        break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
 
       val outputLength = componentLength * 2
       val result = new Array[Byte](outputLength)
@@ -94,14 +95,14 @@ private[kufuli] object EcdsaCodec:
     */
   def concatToDer(concat: Array[Byte]): Either[KufuliError, Array[Byte]] =
     boundary:
-      if concat.length == 0 || concat.length % 2 != 0 then break(Left(KufuliError.InvalidSignature))
+      if concat.length == 0 || concat.length % 2 != 0 then break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
 
       val mid = concat.length / 2
       val rBytes = toSignedInteger(concat, 0, mid)
       val sBytes = toSignedInteger(concat, mid, concat.length)
 
       val contentLen = 2 + rBytes.length + 2 + sBytes.length
-      if contentLen > 255 then break(Left(KufuliError.InvalidSignature))
+      if contentLen > 255 then break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
 
       // Build DER SEQUENCE
       val useLongForm = contentLen >= 128

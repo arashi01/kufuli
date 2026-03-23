@@ -1,0 +1,17 @@
+.*
+!.github/
+!.gitattributes
+!.gitignore
+!.sbtopts
+!.scalafix.conf
+!.scalafmt.conf
+
+dist/
+node_modules/
+target/
+gen/schemas/
+
+metals.sbt
+
+*.md
+!README.md

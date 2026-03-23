@@ -51,13 +51,31 @@ object SignAlgorithm:
 
   extension (alg: SignAlgorithm)
 
-    /** The digest algorithm used internally by this signing algorithm. */
-    def digestAlgorithm: DigestAlgorithm = alg match
-      case HmacSha256 | RsaPkcs1Sha256 | RsaPssSha256 | EcdsaP256Sha256 => DigestAlgorithm.Sha256
-      case HmacSha384 | RsaPkcs1Sha384 | RsaPssSha384 | EcdsaP384Sha384 => DigestAlgorithm.Sha384
-      case HmacSha512 | RsaPkcs1Sha512 | RsaPssSha512 | EcdsaP521Sha512 => DigestAlgorithm.Sha512
-      // EdDSA algorithms handle hashing internally (Ed25519 uses SHA-512, Ed448 uses SHAKE256)
-      case Ed25519 | Ed448 => DigestAlgorithm.Sha512
+    /** The digest algorithm used internally by this signing algorithm. Returns `None` for EdDSA
+      * algorithms, which handle hashing internally (Ed25519 uses SHA-512, Ed448 uses SHAKE256).
+      */
+    def digestAlgorithm: Option[DigestAlgorithm] = alg match
+      case HmacSha256 | RsaPkcs1Sha256 | RsaPssSha256 | EcdsaP256Sha256 => Some(DigestAlgorithm.Sha256)
+      case HmacSha384 | RsaPkcs1Sha384 | RsaPssSha384 | EcdsaP384Sha384 => Some(DigestAlgorithm.Sha384)
+      case HmacSha512 | RsaPkcs1Sha512 | RsaPssSha512 | EcdsaP521Sha512 => Some(DigestAlgorithm.Sha512)
+      case Ed25519 | Ed448                                              => None
+
+    /** JWS "alg" header value per RFC 7518 ss3.1. */
+    inline def jwsName: String = inline alg match
+      case HmacSha256      => "HS256"
+      case HmacSha384      => "HS384"
+      case HmacSha512      => "HS512"
+      case RsaPkcs1Sha256  => "RS256"
+      case RsaPkcs1Sha384  => "RS384"
+      case RsaPkcs1Sha512  => "RS512"
+      case RsaPssSha256    => "PS256"
+      case RsaPssSha384    => "PS384"
+      case RsaPssSha512    => "PS512"
+      case EcdsaP256Sha256 => "ES256"
+      case EcdsaP384Sha384 => "ES384"
+      case EcdsaP521Sha512 => "ES512"
+      case Ed25519         => "EdDSA"
+      case Ed448           => "EdDSA"
 
     /** The associated EC curve, if this is an ECDSA algorithm. */
     def ecCurve: Option[EcCurve] = alg match
