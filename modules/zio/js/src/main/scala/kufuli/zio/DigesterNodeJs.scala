@@ -27,6 +27,7 @@ import _root_.kufuli.js.internal.ByteConversions
 import _root_.kufuli.js.internal.NodeAlgorithm.*
 import _root_.kufuli.js.internal.NodeCrypto
 
+import kufuli.Digest
 import kufuli.DigestAlgorithm
 import kufuli.KufuliError
 
@@ -35,12 +36,15 @@ given Digester with
 
   extension (data: Array[Byte])
 
-    def digest(algorithm: DigestAlgorithm): IO[KufuliError, Array[Byte]] =
+    def digest(algorithm: DigestAlgorithm): IO[KufuliError, Digest] =
       ZIO
         .attempt {
-          ByteConversions.toByteArray(
-            NodeCrypto.createHash(algorithm.nodeName).update(ByteConversions.toUint8Array(data)).digest()
+          Digest.wrap(
+            ByteConversions.toByteArray(
+              NodeCrypto.createHash(algorithm.nodeName).update(ByteConversions.toUint8Array(data)).digest()
+            )
           )
         }
         .mapError(_ => KufuliError.DigestFailure("Node.js digest computation failed"))
+  end extension
 end given

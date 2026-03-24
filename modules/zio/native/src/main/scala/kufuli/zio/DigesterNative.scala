@@ -33,6 +33,7 @@ import _root_.kufuli.native.internal.NativeCrypto
 import _root_.kufuli.native.internal.NativeErrors
 import _root_.kufuli.native.internal.NativeMemory
 
+import kufuli.Digest
 import kufuli.DigestAlgorithm
 import kufuli.KufuliError
 
@@ -41,7 +42,7 @@ given Digester with
 
   extension (data: Array[Byte])
 
-    def digest(algorithm: DigestAlgorithm): IO[KufuliError, Array[Byte]] =
+    def digest(algorithm: DigestAlgorithm): IO[KufuliError, Digest] =
       val algId = NativeAlgorithmId.fromDigest(algorithm)
       ZIO
         .attempt {
@@ -65,7 +66,7 @@ given Digester with
               val len = (!outLen).toInt
               val result = new Array[Byte](len)
               NativeMemory.copyFromNative(out, result, len)
-              Right(result)
+              Right(Digest.wrap(result))
         }
         .mapError(_ => KufuliError.DigestFailure("Native digest computation failed"))
         .flatMap(ZIO.fromEither(_))

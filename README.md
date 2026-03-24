@@ -24,7 +24,7 @@ libraryDependencies += "io.github.arashi01" % "kufuli-zio-browser" % "<version>"
 | ECDSA | `EcdsaP256Sha256`, `EcdsaP384Sha384`, `EcdsaP521Sha512` | ES256, ES384, ES512 |
 | EdDSA | `Ed25519`, `Ed448` | EdDSA |
 
-Ed448 is not supported on the Web Crypto or Native backends. Ed25519 is not supported on the Web Crypto backend (browser limitation).
+Ed448 is not supported on the Web Crypto or Native backends. Ed25519 is not supported on the Web Crypto or Native (macOS/Windows) backends.
 
 Digest algorithms: `Sha1`, `Sha256`, `Sha384`, `Sha512`.
 
@@ -40,26 +40,53 @@ import zio.*
 val key: Either[KufuliError, CryptoKey] =
   CryptoKey.symmetric(hmacKeyBytes)
 
-// Sign
-val sign: IO[KufuliError, Array[Byte]] =
+// Sign - returns typed Signature (not raw Array[Byte])
+val sign: IO[KufuliError, Signature] =
   for
     prepared <- key.prepareSigning(SignAlgorithm.HmacSha256)
     sig      <- prepared.sign(data)
   yield sig
 
-// Verify
+// Verify - accepts typed Signature
 val verify: IO[KufuliError, Unit] =
   for
     prepared <- key.prepareVerifying(SignAlgorithm.HmacSha256)
-    _        <- prepared.verify(data, signature)
+    _        <- prepared.verify(data, Signature.raw(signatureBytes))
   yield ()
 
-// Digest
-val hash: IO[KufuliError, Array[Byte]] =
+// Digest - returns typed Digest (not raw Array[Byte])
+val hash: IO[KufuliError, Digest] =
   data.digest(DigestAlgorithm.Sha256)
 ```
 
 Key preparation is separated from signing/verification. This lets you prepare a key once (expensive platform import) and sign or verify many times (cheap).
+
+### Signature Types
+
+`Signature` and `Digest` are zero-cost opaque types wrapping `Array[Byte]`. They prevent accidentally mixing signature bytes with digest bytes or arbitrary data at compile time.
+
+For ECDSA, two wire formats exist. `Signature` provides format-aware constructors:
+
+```scala
+// From JWS R||S format (RFC 7515 ss3.4)
+val sig = Signature.ecdsaConcat(rsBytes, EcCurve.P256)
+
+// From DER format (X.509, OpenSSL, TLS)
+val sig = Signature.ecdsaDer(derBytes, EcCurve.P256)
+
+// Convert between formats
+sig.toEcdsaDer                          // Signature -> Either[KufuliError, Array[Byte]]
+sig.toEcdsaConcat(EcCurve.P256)         // Signature -> Either[KufuliError, Array[Byte]]
+
+// For HMAC, RSA, EdDSA (no format ambiguity)
+val sig = Signature.raw(signatureBytes)
+```
+
+`Digest` provides timing-safe comparison to prevent side-channel attacks:
+
+```scala
+Digest.constantTimeEquals(computed, stored) // Boolean, constant-time
+```
 
 ### Key Construction
 

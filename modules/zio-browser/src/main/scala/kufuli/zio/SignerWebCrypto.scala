@@ -31,6 +31,7 @@ import _root_.kufuli.browser.internal.WebPreparedKey
 import _root_.kufuli.js.internal.ByteConversions
 
 import kufuli.KufuliError
+import kufuli.Signature
 import kufuli.Signing
 import kufuli.zio.PreparedKey
 import kufuli.zio.Signer
@@ -40,13 +41,13 @@ given Signer with
 
   extension (key: PreparedKey[Signing])
 
-    def sign(data: Array[Byte]): IO[KufuliError, Array[Byte]] =
+    def sign(data: Array[Byte]): IO[KufuliError, Signature] =
       PreparedKey.unwrapKey[Signing](key) match
         case webKey: WebPreparedKey =>
           val dataArr = ByteConversions.toUint8Array(data)
           ZIO
             .fromPromiseJS(WebCryptoGlobal.subtle.sign(webKey.algorithm.signParams, webKey.cryptoKey, dataArr))
-            .map(ab => ByteConversions.toByteArray(new Uint8Array(ab)))
+            .map(ab => Signature.wrapRaw(ByteConversions.toByteArray(new Uint8Array(ab))))
             .mapError(_ => KufuliError.SignatureFailure("Web Crypto signing failed"))
         case _ => ZIO.fail(KufuliError.SignatureFailure("Unexpected prepared key type"))
   end extension

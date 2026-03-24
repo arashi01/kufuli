@@ -23,6 +23,7 @@ package kufuli.zio
 import zio.IO
 
 import kufuli.KufuliError
+import kufuli.Signature
 import kufuli.Signing
 
 /** Typeclass for signing data with a prepared signing key.
@@ -30,10 +31,10 @@ import kufuli.Signing
   * @see [[Signer$ Signer]] companion for static alias
   */
 trait Signer:
-  extension (key: PreparedKey[Signing]) def sign(data: Array[Byte]): IO[KufuliError, Array[Byte]]
+  extension (key: PreparedKey[Signing]) def sign(data: Array[Byte]): IO[KufuliError, Signature]
 
 /** Static alias for [[Signer]] extension method. */
 object Signer:
 
-  def sign(key: PreparedKey[Signing], data: Array[Byte])(using s: Signer): IO[KufuliError, Array[Byte]] =
+  def sign(key: PreparedKey[Signing], data: Array[Byte])(using s: Signer): IO[KufuliError, Signature] =
     s.sign(key)(data)

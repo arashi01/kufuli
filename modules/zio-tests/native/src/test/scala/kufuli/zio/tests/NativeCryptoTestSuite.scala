@@ -25,9 +25,11 @@ import zio.Unsafe
 import zio.ZIO
 
 import kufuli.CryptoKey
+import kufuli.Digest
 import kufuli.DigestAlgorithm
 import kufuli.KufuliError
 import kufuli.SignAlgorithm
+import kufuli.Signature
 import kufuli.testkit.CryptoTestSuite
 import kufuli.zio.given
 
@@ -38,13 +40,13 @@ class NativeCryptoTestSuite extends CryptoTestSuite:
       Runtime.default.unsafe.run(zio).getOrThrowFiberFailure()
     }
 
-  def prepareAndSign(key: CryptoKey, algorithm: SignAlgorithm, data: Array[Byte]): Array[Byte] =
+  def prepareAndSign(key: CryptoKey, algorithm: SignAlgorithm, data: Array[Byte]): Signature =
     run(key.prepareSigning(algorithm).flatMap(_.sign(data)))
 
-  def prepareAndVerify(key: CryptoKey, algorithm: SignAlgorithm, data: Array[Byte], signature: Array[Byte]): Unit =
+  def prepareAndVerify(key: CryptoKey, algorithm: SignAlgorithm, data: Array[Byte], signature: Signature): Unit =
     run(key.prepareVerifying(algorithm).flatMap(_.verify(data, signature)))
 
-  def computeDigest(data: Array[Byte], algorithm: DigestAlgorithm): Array[Byte] =
+  def computeDigest(data: Array[Byte], algorithm: DigestAlgorithm): Digest =
     run(data.digest(algorithm))
 
   def prepareSigningError(key: CryptoKey, algorithm: SignAlgorithm): Option[KufuliError] =

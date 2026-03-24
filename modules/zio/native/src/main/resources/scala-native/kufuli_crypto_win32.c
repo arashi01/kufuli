@@ -16,6 +16,7 @@
 #undef WIN32_NO_STATUS
 #include <ntstatus.h>
 #include <bcrypt.h>
+#include <stdlib.h>
 #include <string.h>
 
 #pragma comment(lib, "bcrypt.lib")
@@ -763,7 +764,7 @@ static int asym_sign(int alg_id,
 
     if (is_rsa(alg_id)) {
         blob = rsa_pkcs8_to_blob(key, key_len, &blob_len);
-        blob_type = BCRYPT_RSAPRIVATE_BLOB;
+        blob_type = BCRYPT_RSAFULLPRIVATE_BLOB;
     } else if (is_ecdsa(alg_id)) {
         blob = ec_pkcs8_to_blob(key, key_len, &blob_len);
         blob_type = BCRYPT_ECCPRIVATE_BLOB;

@@ -35,6 +35,7 @@ import _root_.kufuli.native.internal.NativePreparedKey
 
 import kufuli.EcdsaCodec
 import kufuli.KufuliError
+import kufuli.Signature
 import kufuli.Signing
 
 /** Native implementation of [[Signer]]. */
@@ -42,14 +43,14 @@ given Signer with
 
   extension (key: PreparedKey[Signing])
 
-    def sign(data: Array[Byte]): IO[KufuliError, Array[Byte]] =
+    def sign(data: Array[Byte]): IO[KufuliError, Signature] =
       PreparedKey.unwrapKey[Signing](key) match
         case nk: NativePreparedKey => nativeSign(nk, data)
         case _                     => ZIO.fail(KufuliError.SignatureFailure("Unexpected prepared key type"))
 
 private val MaxSigLen = 1024
 
-private def nativeSign(nk: NativePreparedKey, data: Array[Byte]): IO[KufuliError, Array[Byte]] =
+private def nativeSign(nk: NativePreparedKey, data: Array[Byte]): IO[KufuliError, Signature] =
   ZIO
     .attempt {
       Zone:
@@ -80,7 +81,8 @@ private def nativeSign(nk: NativePreparedKey, data: Array[Byte]): IO[KufuliError
     .flatMap(ZIO.fromEither(_))
     .flatMap { rawSig =>
       // ECDSA: OpenSSL returns DER-encoded signatures, transcode to R||S
-      nk.algorithm.ecCurve match
+      val normalised = nk.algorithm.ecCurve match
         case Some(curve) => ZIO.fromEither(EcdsaCodec.derToConcat(rawSig, curve.componentLength))
         case None        => ZIO.succeed(rawSig)
+      normalised.map(Signature.wrapRaw)
     }

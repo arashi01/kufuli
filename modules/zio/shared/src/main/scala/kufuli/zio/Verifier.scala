@@ -23,6 +23,7 @@ package kufuli.zio
 import zio.IO
 
 import kufuli.KufuliError
+import kufuli.Signature
 import kufuli.Verifying
 
 /** Typeclass for verifying a signature against data with a prepared verifying key.
@@ -30,10 +31,10 @@ import kufuli.Verifying
   * @see [[Verifier$ Verifier]] companion for static alias
   */
 trait Verifier:
-  extension (key: PreparedKey[Verifying]) def verify(data: Array[Byte], signature: Array[Byte]): IO[KufuliError, Unit]
+  extension (key: PreparedKey[Verifying]) def verify(data: Array[Byte], signature: Signature): IO[KufuliError, Unit]
 
 /** Static alias for [[Verifier]] extension method. */
 object Verifier:
 
-  def verify(key: PreparedKey[Verifying], data: Array[Byte], signature: Array[Byte])(using v: Verifier): IO[KufuliError, Unit] =
+  def verify(key: PreparedKey[Verifying], data: Array[Byte], signature: Signature)(using v: Verifier): IO[KufuliError, Unit] =
     v.verify(key)(data, signature)

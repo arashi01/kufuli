@@ -31,6 +31,7 @@ import kufuli.CryptoKey
 import kufuli.DigestAlgorithm
 import kufuli.KufuliError
 import kufuli.SignAlgorithm
+import kufuli.Signature
 import kufuli.testkit.RfcVectors
 import kufuli.zio.given
 
@@ -48,7 +49,7 @@ class BrowserCryptoTestSuite extends munit.FunSuite:
   test("HMAC-SHA256 produces RFC 7515 A.1 expected signature"):
     val key = CryptoKey.symmetric(RfcVectors.hmacSha256Key).toOption.get
     run(key.prepareSigning(SignAlgorithm.HmacSha256).flatMap(_.sign(RfcVectors.hmacSha256SigningInput))).map { sig =>
-      assertEquals(sig.toList, RfcVectors.hmacSha256ExpectedSignature.toList)
+      assertEquals(sig.bytes.toList, RfcVectors.hmacSha256ExpectedSignature.toList)
     }
 
   test("HMAC-SHA256 signature verifies against RFC 7515 A.1 vector"):
@@ -56,7 +57,7 @@ class BrowserCryptoTestSuite extends munit.FunSuite:
     run(
       key
         .prepareVerifying(SignAlgorithm.HmacSha256)
-        .flatMap(_.verify(RfcVectors.hmacSha256SigningInput, RfcVectors.hmacSha256ExpectedSignature))
+        .flatMap(_.verify(RfcVectors.hmacSha256SigningInput, Signature.raw(RfcVectors.hmacSha256ExpectedSignature)))
     )
 
   test("HMAC-SHA256 sign-verify round-trip"):
@@ -75,7 +76,7 @@ class BrowserCryptoTestSuite extends munit.FunSuite:
     val data = "test payload".getBytes("UTF-8")
     val badSig = new Array[Byte](32)
     badSig(0) = 1
-    run(key.prepareVerifying(SignAlgorithm.HmacSha256).flatMap(_.verify(data, badSig))).failed
+    run(key.prepareVerifying(SignAlgorithm.HmacSha256).flatMap(_.verify(data, Signature.raw(badSig)))).failed
       .map(e => assert(e.getMessage.contains("mismatch") || e.getMessage.contains("verification")))
 
   test("HMAC-SHA384 sign-verify round-trip"):
@@ -87,7 +88,7 @@ class BrowserCryptoTestSuite extends munit.FunSuite:
       for
         signKey <- key.prepareSigning(SignAlgorithm.HmacSha384)
         sig <- signKey.sign(data)
-        _ = assertEquals(sig.length, 48)
+        _ = assertEquals(sig.bytes.length, 48)
         verifyKey <- key.prepareVerifying(SignAlgorithm.HmacSha384)
         _ <- verifyKey.verify(data, sig)
       yield ()
@@ -101,7 +102,7 @@ class BrowserCryptoTestSuite extends munit.FunSuite:
       for
         signKey <- key.prepareSigning(SignAlgorithm.HmacSha512)
         sig <- signKey.sign(data)
-        _ = assertEquals(sig.length, 64)
+        _ = assertEquals(sig.bytes.length, 64)
         verifyKey <- key.prepareVerifying(SignAlgorithm.HmacSha512)
         _ <- verifyKey.verify(data, sig)
       yield ()
@@ -121,17 +122,17 @@ class BrowserCryptoTestSuite extends munit.FunSuite:
 
   test("SHA-256 digest of empty input matches NIST vector"):
     run(RfcVectors.emptyInput.digest(DigestAlgorithm.Sha256)).map { digest =>
-      assertEquals(digest.toList, RfcVectors.sha256EmptyDigest.toList)
+      assertEquals(digest.bytes.toList, RfcVectors.sha256EmptyDigest.toList)
     }
 
   test("SHA-384 digest of empty input matches NIST vector"):
     run(RfcVectors.emptyInput.digest(DigestAlgorithm.Sha384)).map { digest =>
-      assertEquals(digest.toList, RfcVectors.sha384EmptyDigest.toList)
+      assertEquals(digest.bytes.toList, RfcVectors.sha384EmptyDigest.toList)
     }
 
   test("SHA-512 digest of empty input matches NIST vector"):
     run(RfcVectors.emptyInput.digest(DigestAlgorithm.Sha512)).map { digest =>
-      assertEquals(digest.toList, RfcVectors.sha512EmptyDigest.toList)
+      assertEquals(digest.bytes.toList, RfcVectors.sha512EmptyDigest.toList)
     }
 
   test("SHA-256 digest output has correct length"):

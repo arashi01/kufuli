@@ -34,6 +34,7 @@ import _root_.kufuli.native.internal.NativePreparedKey
 import kufuli.EcdsaCodec
 import kufuli.KufuliError
 import kufuli.SecurityChecks
+import kufuli.Signature
 import kufuli.Verifying
 
 /** Native implementation of [[Verifier]]. */
@@ -41,15 +42,16 @@ given Verifier with
 
   extension (key: PreparedKey[Verifying])
 
-    def verify(data: Array[Byte], signature: Array[Byte]): IO[KufuliError, Unit] =
+    def verify(data: Array[Byte], signature: Signature): IO[KufuliError, Unit] =
+      val sigBytes = Signature.unwrapRaw(signature)
       PreparedKey.unwrapKey[Verifying](key) match
         case nk: NativePreparedKey =>
           val alg = nk.algorithm
-          ZIO.fromEither(SecurityChecks.preVerify(alg, signature)).flatMap { _ =>
+          ZIO.fromEither(SecurityChecks.preVerify(alg, sigBytes)).flatMap { _ =>
             // ECDSA: transcode R||S to DER for OpenSSL
             val sigEffect = alg.ecCurve match
-              case Some(_) => ZIO.fromEither(EcdsaCodec.concatToDer(signature))
-              case None    => ZIO.succeed(signature)
+              case Some(_) => ZIO.fromEither(EcdsaCodec.concatToDer(sigBytes))
+              case None    => ZIO.succeed(sigBytes)
             sigEffect.flatMap(nativeVerify(nk, data, _))
           }
         case _ => ZIO.fail(KufuliError.VerificationFailure("Unexpected prepared key type"))
