@@ -179,6 +179,8 @@ def nativeCryptoLinkSettings = List(
       c.withLinkingOptions(c.linkingOptions ++ Seq("-lssl", "-lcrypto"))
     else if (os.contains("mac") || os.contains("darwin"))
       c.withLinkingOptions(c.linkingOptions ++ Seq("-framework", "Security", "-framework", "CoreFoundation"))
+    else if (os.contains("win"))
+      c.withLinkingOptions(c.linkingOptions ++ Seq("-lbcrypt"))
     else
       c
   }

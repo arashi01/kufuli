@@ -2,7 +2,7 @@
 
 **kufuli** - Swahili for _lock_: cross-platform cryptographic signing, verification, and hashing for Scala 3 on JVM, Node.js, browsers and Native.
 
-kufuli provides a unified API over platform-native crypto engines - JCA on JVM, Node.js `crypto` module, and Web Crypto `SubtleCrypto` in browsers. All operations return typed errors via ZIO.
+kufuli provides a unified API over platform-native crypto engines - JCA on JVM, Node.js `crypto` module, Web Crypto `SubtleCrypto` in browsers, OpenSSL on Linux, Security.framework on macOS, and BCrypt on Windows. All operations return typed errors via ZIO.
 
 ## Installation
 
@@ -100,8 +100,8 @@ Platform `given` instances are resolved automatically via `import kufuli.zio.giv
 | Node.js (Scala.js) | `kufuli-zio` | Node.js `crypto` module |
 | Browser (Scala.js) | `kufuli-zio-browser` | Web Crypto `SubtleCrypto` |
 | Native (Linux) | `kufuli-zio` | OpenSSL EVP |
-| Native (macOS) | `kufuli-zio` | Security.framework (planned) |
-| Native (Windows) | `kufuli-zio` | BCrypt (planned) |
+| Native (macOS) | `kufuli-zio` | Security.framework + CommonCrypto |
+| Native (Windows) | `kufuli-zio` | BCrypt |
 
 ### Security
 
