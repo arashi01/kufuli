@@ -79,6 +79,17 @@ static CFStringRef get_key_type(int alg_id) {
     return NULL;
 }
 
+/* Key size in bits for the algorithm. Required by SecKeyCreateWithData. */
+static int get_key_size_bits(int alg_id) {
+    switch (alg_id) {
+        case KUFULI_ALG_ECDSA_P256_SHA256: return 256;
+        case KUFULI_ALG_ECDSA_P384_SHA384: return 384;
+        case KUFULI_ALG_ECDSA_P521_SHA512: return 521;
+        /* RSA: size is embedded in the key data, pass 0 to let Security.framework infer */
+        default: return 0;
+    }
+}
+
 /* --------------------------------------------------------------------------
  * SecKey import helper
  *
@@ -96,21 +107,41 @@ static SecKeyRef import_key(int alg_id,
     CFDataRef key_data = CFDataCreate(kCFAllocatorDefault, key_bytes, (CFIndex)key_len);
     if (!key_data) return NULL;
 
-    const void *attr_keys[] = { kSecAttrKeyType, kSecAttrKeyClass };
-    const void *attr_values[] = { key_type, key_class };
+    int key_bits = get_key_size_bits(alg_id);
+    CFNumberRef key_size_ref = NULL;
+    const void *attr_keys[3];
+    const void *attr_values[3];
+    CFIndex attr_count = 2;
+
+    attr_keys[0] = kSecAttrKeyType;    attr_values[0] = key_type;
+    attr_keys[1] = kSecAttrKeyClass;   attr_values[1] = key_class;
+
+    if (key_bits > 0) {
+        key_size_ref = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &key_bits);
+        if (!key_size_ref) { CFRelease(key_data); return NULL; }
+        attr_keys[2] = kSecAttrKeySizeInBits;
+        attr_values[2] = key_size_ref;
+        attr_count = 3;
+    }
+
     CFDictionaryRef attrs = CFDictionaryCreate(
         kCFAllocatorDefault,
-        attr_keys, attr_values, 2,
+        attr_keys, attr_values, attr_count,
         &kCFTypeDictionaryKeyCallBacks,
         &kCFTypeDictionaryValueCallBacks
     );
-    if (!attrs) { CFRelease(key_data); return NULL; }
+    if (!attrs) {
+        if (key_size_ref) CFRelease(key_size_ref);
+        CFRelease(key_data);
+        return NULL;
+    }
 
     CFErrorRef error = NULL;
     SecKeyRef sec_key = SecKeyCreateWithData(key_data, attrs, &error);
 
     if (error) CFRelease(error);
     CFRelease(attrs);
+    if (key_size_ref) CFRelease(key_size_ref);
     CFRelease(key_data);
     return sec_key;
 }
