@@ -14,6 +14,12 @@ libraryDependencies += "io.github.arashi01" %%% "kufuli-zio" % "<version>"
 libraryDependencies += "io.github.arashi01" % "kufuli-zio-browser" % "<version>"
 ```
 
+## Requirements
+
+- **JVM**: JDK 21+ (JDK 17's SunEC provider incorrectly rejects valid ECDSA signatures where the nonce produces a point with x-coordinate >= curve order - [Wycheproof `ArithmeticError` vectors](https://github.com/C2SP/wycheproof), tcId 350/382/419)
+- **Node.js**: 22.x+
+- **Scala**: 3.8+
+
 ## Supported Algorithms
 
 | Family | Algorithms | JWS Names |

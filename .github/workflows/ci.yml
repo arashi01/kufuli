@@ -18,7 +18,7 @@ concurrency:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  JDK_RELEASE: 17
+  JDK_RELEASE: 21
   JDK_CURRENT: 25
   NODE_LTS: 22
   SBT_OPTS: >-
@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [17, 21, 25]
+        java: [21, 25]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
