@@ -66,6 +66,7 @@ val `kufuli-zio` =
     .settings(description := "ZIO typeclass traits and platform-specific crypto backends")
     .nativeSettings(nativeSettings)
     .jsSettings(jsSettings)
+    .jsSettings(Compile / doc / sources := Nil) // Scala 3 doc compiler cannot resolve overloaded @js.native methods in NodeCrypto
     .jsConfigure(_.dependsOn(`kufuli-js-shared`))
     .settings(libraryDependencies += libraries.zio.value)
 
@@ -210,7 +211,7 @@ def compilerOptions = baseCompilerOptions ++ List(
 def compilerSettings = List(
   Compile / compile / scalacOptions ++= compilerOptions,
   Test / compile / scalacOptions ++= baseCompilerOptions,
-  Compile / doc / scalacOptions := Nil,
+  Compile / doc / scalacOptions := Nil, // doc compiler does not support -Yexplicit-nulls, -Werror, etc.
   Test / doc / scalacOptions := Nil
 )
 
