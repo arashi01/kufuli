@@ -24,12 +24,13 @@ import scala.scalajs.js
 
 import kufuli.CryptoKey
 
-/** Constructs JS JWK objects from CryptoKey byte arrays for Node.js key import. All
+/** Constructs JS JWK objects from [[kufuli.CryptoKey CryptoKey]] byte arrays for platform key
+  * import (Node.js `createPublicKey`/`createPrivateKey`, Web Crypto `subtle.importKey`). All
   * `js.Dynamic.literal` usage is isolated here.
   */
 private[kufuli] object JwkBuilder:
 
-  /** Builds a JWK object for Node.js key import. */
+  /** Builds a JWK `js.Object` suitable for JWK-format key import on any JS platform. */
   def toJwk(key: CryptoKey): js.Object =
     // scalafix:off DisableSyntax.asInstanceOf; Scala.js js.Dynamic.literal -> typed js.Object coercion
     val jwk: js.Dynamic = key match

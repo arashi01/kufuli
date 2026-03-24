@@ -42,6 +42,17 @@ val `kufuli-core` =
     .jsSettings(jsSettings)
     .settings(libraryDependencies += libraries.boilerplate.value)
 
+val `kufuli-js-shared` =
+  project
+    .in(file("modules/js-shared"))
+    .enablePlugins(ScalaJSPlugin)
+    .dependsOn(`kufuli-core`.js)
+    .settings(compilerSettings)
+    .settings(fileHeaderSettings)
+    .settings(publishSettings)
+    .settings(jsSettings)
+    .settings(description := "Shared JS utilities for kufuli browser and Node.js backends")
+
 val `kufuli-zio` =
   crossProject(JVMPlatform, JSPlatform, NativePlatform)
     .withoutSuffixFor(JVMPlatform)
@@ -55,18 +66,7 @@ val `kufuli-zio` =
     .settings(description := "ZIO typeclass traits and platform-specific crypto backends")
     .nativeSettings(nativeSettings)
     .jsSettings(jsSettings)
-    .settings(libraryDependencies += libraries.zio.value)
-
-val `kufuli-zio-browser` =
-  project
-    .in(file("modules/zio-browser"))
-    .enablePlugins(ScalaJSPlugin)
-    .dependsOn(`kufuli-core`.js)
-    .settings(compilerSettings)
-    .settings(unitTestSettings)
-    .settings(fileHeaderSettings)
-    .settings(publishSettings)
-    .settings(description := "Web Crypto (SubtleCrypto) backend for kufuli")
+    .jsConfigure(_.dependsOn(`kufuli-js-shared`))
     .settings(libraryDependencies += libraries.zio.value)
 
 val `kufuli-testkit` =
@@ -83,6 +83,22 @@ val `kufuli-testkit` =
     .nativeSettings(nativeSettings)
     .jsSettings(jsSettings)
     .settings(libraryDependencies += libraries.munit.value)
+
+val `kufuli-zio-browser` =
+  project
+    .in(file("modules/zio-browser"))
+    .enablePlugins(ScalaJSPlugin)
+    .dependsOn(`kufuli-js-shared`)
+    .settings(compilerSettings)
+    .settings(unitTestSettings)
+    .settings(fileHeaderSettings)
+    .settings(publishSettings)
+    .settings(jsSettings)
+    .settings(description := "Web Crypto (SubtleCrypto) backend for kufuli")
+    .settings(libraryDependencies += libraries.zio.value)
+    .settings(Compile / unmanagedSourceDirectories += baseDirectory.value / ".." / "zio" / "shared" / "src" / "main" / "scala")
+    .settings(Test / jsEnv := new jsenv.playwright.PWEnv(browserName = "chromium", headless = true, showLogs = true))
+    .dependsOn(`kufuli-testkit`.js % Test)
 
 val `kufuli-zio-tests` =
   crossProject(JVMPlatform, JSPlatform, NativePlatform)
@@ -116,6 +132,7 @@ val `kufuli-js` =
     .settings(publish / skip := true)
     .aggregate(
       `kufuli-core`.js,
+      `kufuli-js-shared`,
       `kufuli-zio`.js,
       `kufuli-zio-browser`,
       `kufuli-testkit`.js,
