@@ -13,6 +13,7 @@
 #include <Security/Security.h>
 #include <CommonCrypto/CommonHMAC.h>
 #include <CommonCrypto/CommonDigest.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* --------------------------------------------------------------------------
@@ -91,11 +92,107 @@ static int get_key_size_bits(int alg_id) {
 }
 
 /* --------------------------------------------------------------------------
+ * Minimal DER helpers for extracting inner key data from SPKI / PKCS#8.
+ *
+ * SecKeyCreateWithData expects platform-native formats:
+ *   RSA public:  SubjectPublicKeyInfo (SPKI) DER
+ *   RSA private: PKCS#1 RSAPrivateKey (inner key, NOT PKCS#8 wrapper)
+ *   EC public:   X9.63 uncompressed point (04 || X || Y, NOT SPKI)
+ *   EC private:  PKCS#8 PrivateKeyInfo DER
+ *
+ * Per Apple TN3137 "On Cryptographic Key Formats" (Quinn "The Eskimo").
+ * -------------------------------------------------------------------------- */
+
+/* Skip a DER tag + length, returning content start and length.
+ * Returns 0 on success, -1 on error. Advances *pos past the entire TLV. */
+static int der_skip_tl(const unsigned char *buf, size_t buf_len,
+                       size_t *pos, const unsigned char **content, size_t *content_len) {
+    if (*pos >= buf_len) return -1;
+    (*pos)++; /* tag */
+    if (*pos >= buf_len) return -1;
+    unsigned char b = buf[(*pos)++];
+    size_t len;
+    if (b < 0x80) {
+        len = b;
+    } else if (b == 0x81) {
+        if (*pos >= buf_len) return -1;
+        len = buf[(*pos)++];
+    } else if (b == 0x82) {
+        if (*pos + 1 >= buf_len) return -1;
+        len = ((size_t)buf[*pos] << 8) | buf[*pos + 1];
+        *pos += 2;
+    } else {
+        return -1;
+    }
+    if (*pos + len > buf_len) return -1;
+    *content = buf + *pos;
+    *content_len = len;
+    *pos += len;
+    return 0;
+}
+
+/* Extract the BIT STRING payload from SPKI (skip AlgorithmIdentifier).
+ * Returns pointer to the raw content after the unused-bits byte. */
+static const unsigned char* spki_extract_bitstring(const unsigned char *spki, size_t spki_len,
+                                                   size_t *out_len) {
+    size_t pos = 0;
+    const unsigned char *outer_content;
+    size_t outer_len;
+    /* Outer SEQUENCE */
+    if (spki[0] != 0x30) return NULL;
+    if (der_skip_tl(spki, spki_len, &pos, &outer_content, &outer_len) != 0) return NULL;
+
+    size_t inner_pos = 0;
+    const unsigned char *tmp;
+    size_t tmp_len;
+    /* Skip AlgorithmIdentifier SEQUENCE */
+    if (outer_content[inner_pos] != 0x30) return NULL;
+    if (der_skip_tl(outer_content, outer_len, &inner_pos, &tmp, &tmp_len) != 0) return NULL;
+
+    /* BIT STRING */
+    if (inner_pos >= outer_len || outer_content[inner_pos] != 0x03) return NULL;
+    const unsigned char *bs_content;
+    size_t bs_len;
+    if (der_skip_tl(outer_content, outer_len, &inner_pos, &bs_content, &bs_len) != 0) return NULL;
+    if (bs_len < 1 || bs_content[0] != 0x00) return NULL; /* unused bits must be 0 */
+
+    *out_len = bs_len - 1;
+    return bs_content + 1;
+}
+
+/* Extract the OCTET STRING payload from PKCS#8 (skip version + AlgorithmIdentifier).
+ * Returns pointer to the inner key data (PKCS#1 for RSA, SEC1 for EC). */
+static const unsigned char* pkcs8_extract_inner(const unsigned char *pkcs8, size_t pkcs8_len,
+                                                size_t *out_len) {
+    size_t pos = 0;
+    const unsigned char *outer_content;
+    size_t outer_len;
+    /* Outer SEQUENCE */
+    if (pkcs8[0] != 0x30) return NULL;
+    if (der_skip_tl(pkcs8, pkcs8_len, &pos, &outer_content, &outer_len) != 0) return NULL;
+
+    size_t inner_pos = 0;
+    const unsigned char *tmp;
+    size_t tmp_len;
+    /* Skip version INTEGER */
+    if (der_skip_tl(outer_content, outer_len, &inner_pos, &tmp, &tmp_len) != 0) return NULL;
+    /* Skip AlgorithmIdentifier SEQUENCE */
+    if (der_skip_tl(outer_content, outer_len, &inner_pos, &tmp, &tmp_len) != 0) return NULL;
+    /* OCTET STRING containing inner key */
+    if (inner_pos >= outer_len || outer_content[inner_pos] != 0x04) return NULL;
+    const unsigned char *oct_content;
+    size_t oct_len;
+    if (der_skip_tl(outer_content, outer_len, &inner_pos, &oct_content, &oct_len) != 0) return NULL;
+
+    *out_len = oct_len;
+    return oct_content;
+}
+
+/* --------------------------------------------------------------------------
  * SecKey import helper
  *
- * Creates a SecKeyRef from DER-encoded key bytes.
- * Public keys: SubjectPublicKeyInfo DER.
- * Private keys: PKCS#8 PrivateKeyInfo DER.
+ * Converts from kufuli's DER formats (SPKI for public, PKCS#8 for private)
+ * to the formats expected by SecKeyCreateWithData.
  * -------------------------------------------------------------------------- */
 
 static SecKeyRef import_key(int alg_id,
@@ -104,7 +201,96 @@ static SecKeyRef import_key(int alg_id,
     CFStringRef key_type = get_key_type(alg_id);
     if (!key_type) return NULL;
 
-    CFDataRef key_data = CFDataCreate(kCFAllocatorDefault, key_bytes, (CFIndex)key_len);
+    const unsigned char *import_bytes = key_bytes;
+    size_t import_len = key_len;
+
+    /*
+     * Convert to Apple-expected formats per TN3137:
+     *   RSA public:  SPKI accepted directly
+     *   RSA private: strip PKCS#8 -> PKCS#1 RSAPrivateKey
+     *   EC public:   strip SPKI -> X9.63 point (04||X||Y)
+     *   EC private:  strip PKCS#8 -> SEC1 ECPrivateKey -> extract X9.63 (04||X||Y||K)
+     */
+    if (is_rsa(alg_id) && key_class == kSecAttrKeyClassPrivate) {
+        import_bytes = pkcs8_extract_inner(key_bytes, key_len, &import_len);
+        if (!import_bytes) return NULL;
+    } else if (is_ecdsa(alg_id) && key_class == kSecAttrKeyClassPublic) {
+        import_bytes = spki_extract_bitstring(key_bytes, key_len, &import_len);
+        if (!import_bytes) return NULL;
+    } else if (is_ecdsa(alg_id) && key_class == kSecAttrKeyClassPrivate) {
+        /* PKCS#8 -> SEC1 ECPrivateKey -> extract 04||X||Y from [1] BIT STRING, d from OCTET STRING
+         * Then reassemble as X9.63: 04||X||Y||K */
+        const unsigned char *sec1;
+        size_t sec1_len;
+        sec1 = pkcs8_extract_inner(key_bytes, key_len, &sec1_len);
+        if (!sec1) return NULL;
+
+        /* Parse SEC1 ECPrivateKey: SEQUENCE { INTEGER 1, OCTET STRING d, [1] { BIT STRING point } } */
+        size_t s1_pos = 0;
+        const unsigned char *seq_content;
+        size_t seq_len;
+        if (sec1[0] != 0x30) return NULL;
+        if (der_skip_tl(sec1, sec1_len, &s1_pos, &seq_content, &seq_len) != 0) return NULL;
+
+        size_t sp = 0;
+        const unsigned char *tmp;
+        size_t tmp_len;
+        /* Skip version INTEGER 1 */
+        if (der_skip_tl(seq_content, seq_len, &sp, &tmp, &tmp_len) != 0) return NULL;
+        /* OCTET STRING d */
+        if (sp >= seq_len || seq_content[sp] != 0x04) return NULL;
+        const unsigned char *d_bytes;
+        size_t d_len;
+        if (der_skip_tl(seq_content, seq_len, &sp, &d_bytes, &d_len) != 0) return NULL;
+        /* [1] EXPLICIT containing BIT STRING with point */
+        if (sp >= seq_len || seq_content[sp] != 0xa1) return NULL;
+        const unsigned char *ctx1;
+        size_t ctx1_len;
+        if (der_skip_tl(seq_content, seq_len, &sp, &ctx1, &ctx1_len) != 0) return NULL;
+        /* BIT STRING inside [1] */
+        size_t bp = 0;
+        if (ctx1[0] != 0x03) return NULL;
+        const unsigned char *bs;
+        size_t bs_len;
+        if (der_skip_tl(ctx1, ctx1_len, &bp, &bs, &bs_len) != 0) return NULL;
+        if (bs_len < 2 || bs[0] != 0x00) return NULL;
+        const unsigned char *point = bs + 1; /* 04||X||Y */
+        size_t point_len = bs_len - 1;
+
+        /* Build X9.63 private: 04||X||Y||K */
+        size_t x963_len = point_len + d_len;
+        unsigned char *x963 = (unsigned char *)malloc(x963_len);
+        if (!x963) return NULL;
+        memcpy(x963, point, point_len);
+        memcpy(x963 + point_len, d_bytes, d_len);
+
+        CFDataRef ec_data = CFDataCreate(kCFAllocatorDefault, x963, (CFIndex)x963_len);
+        free(x963);
+        if (!ec_data) return NULL;
+
+        /* Build attributes and import */
+        int ec_bits = get_key_size_bits(alg_id);
+        CFNumberRef ec_size_ref = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &ec_bits);
+        if (!ec_size_ref) { CFRelease(ec_data); return NULL; }
+
+        const void *ec_attr_keys[] = { kSecAttrKeyType, kSecAttrKeyClass, kSecAttrKeySizeInBits };
+        const void *ec_attr_vals[] = { key_type, key_class, ec_size_ref };
+        CFDictionaryRef ec_attrs = CFDictionaryCreate(
+            kCFAllocatorDefault, ec_attr_keys, ec_attr_vals, 3,
+            &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks
+        );
+        CFRelease(ec_size_ref);
+        if (!ec_attrs) { CFRelease(ec_data); return NULL; }
+
+        CFErrorRef ec_error = NULL;
+        SecKeyRef ec_key = SecKeyCreateWithData(ec_data, ec_attrs, &ec_error);
+        if (ec_error) CFRelease(ec_error);
+        CFRelease(ec_attrs);
+        CFRelease(ec_data);
+        return ec_key;
+    }
+
+    CFDataRef key_data = CFDataCreate(kCFAllocatorDefault, import_bytes, (CFIndex)import_len);
     if (!key_data) return NULL;
 
     int key_bits = get_key_size_bits(alg_id);
