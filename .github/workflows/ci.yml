@@ -218,7 +218,7 @@ jobs:
     needs:
       - test_jvm
       - test_js
-
+      - test_native
       - static_analysis
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
@@ -250,7 +250,7 @@ jobs:
           trust_level: 5
 
       - name: Publish Snapshot
-        run: sbt --no-colors --supershell=false publishSigned
+        run: sbt --no-colors --supershell=false aetherDeploy
         env:
           SONATYPE_USERNAME: ${{ secrets.PUBLISH_USER }}
           SONATYPE_PASSWORD: ${{ secrets.PUBLISH_USER_PASSPHRASE }}

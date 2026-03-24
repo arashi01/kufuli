@@ -17,6 +17,7 @@ addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.14.5")
 addSbtPlugin("com.github.sbt" % "sbt-header" % "5.11.0")
 
 addSbtPlugin("com.github.sbt" % "sbt-pgp" % "2.3.1")
+addSbtPlugin("no.arktekk.sbt" % "aether-deploy-signed" % "0.30.0")
 
 libraryDependencies += "io.github.gmkumar2005" %% "scala-js-env-playwright" % "0.1.18"
 libraryDependencies += "com.microsoft.playwright" % "playwright" % "1.58.0"
