@@ -95,6 +95,14 @@ class CryptoKeySpec extends FunSuite:
     d(31) = 1
     assert(CryptoKey.ecPrivate(EcCurve.P256, p256Gx, p256Gy, d).isRight)
 
+  test("ecPrivate rejects d = 0"):
+    val d = new Array[Byte](32)
+    assert(CryptoKey.ecPrivate(EcCurve.P256, p256Gx, p256Gy, d).isLeft)
+
+  test("ecPrivate rejects d >= curve order"):
+    val d = Array.fill[Byte](32)(0xff.toByte)
+    assert(CryptoKey.ecPrivate(EcCurve.P256, p256Gx, p256Gy, d).isLeft)
+
   // -- OKP --
 
   test("okpPublic accepts 32-byte Ed25519 key"):
@@ -105,6 +113,12 @@ class CryptoKeySpec extends FunSuite:
 
   test("okpPrivate accepts valid Ed25519 key"):
     assert(CryptoKey.okpPrivate(OkpCurve.Ed25519, new Array[Byte](32), new Array[Byte](32)).isRight)
+
+  test("okpPrivate rejects wrong-length d for Ed25519"):
+    assert(CryptoKey.okpPrivate(OkpCurve.Ed25519, new Array[Byte](32), new Array[Byte](16)).isLeft)
+
+  test("okpPrivate rejects wrong-length d for Ed448"):
+    assert(CryptoKey.okpPrivate(OkpCurve.Ed448, new Array[Byte](57), new Array[Byte](32)).isLeft)
 
   test("okpPublic accepts 57-byte Ed448 key"):
     assert(CryptoKey.okpPublic(OkpCurve.Ed448, new Array[Byte](57)).isRight)

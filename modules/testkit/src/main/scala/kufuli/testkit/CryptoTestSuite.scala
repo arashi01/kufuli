@@ -157,6 +157,128 @@ abstract class CryptoTestSuite extends FunSuite:
     assertEquals(sig.bytes.toList, RfcVectors.rsaSha256ExpectedSignature.toList)
 
   // ---------------------------------------------------------------------------
+  // RSA-PSS tests
+  // ---------------------------------------------------------------------------
+
+  test("RSA-PSS SHA-256 sign-verify round-trip"):
+    val privKey = CryptoKey
+      .rsaPrivate(
+        RfcVectors.rsaModulus,
+        RfcVectors.rsaExponent,
+        RfcVectors.rsaD,
+        RfcVectors.rsaP,
+        RfcVectors.rsaQ,
+        RfcVectors.rsaDp,
+        RfcVectors.rsaDq,
+        RfcVectors.rsaQi
+      )
+      .toOption
+      .get
+    val pubKey = CryptoKey.rsaPublic(RfcVectors.rsaModulus, RfcVectors.rsaExponent).toOption.get
+    val data = "RSA-PSS SHA-256 round-trip".getBytes("UTF-8")
+    val sig = prepareAndSign(privKey, SignAlgorithm.RsaPssSha256, data)
+    prepareAndVerify(pubKey, SignAlgorithm.RsaPssSha256, data, sig)
+
+  test("RSA-PSS SHA-384 sign-verify round-trip"):
+    val privKey = CryptoKey
+      .rsaPrivate(
+        RfcVectors.rsaModulus,
+        RfcVectors.rsaExponent,
+        RfcVectors.rsaD,
+        RfcVectors.rsaP,
+        RfcVectors.rsaQ,
+        RfcVectors.rsaDp,
+        RfcVectors.rsaDq,
+        RfcVectors.rsaQi
+      )
+      .toOption
+      .get
+    val pubKey = CryptoKey.rsaPublic(RfcVectors.rsaModulus, RfcVectors.rsaExponent).toOption.get
+    val data = "RSA-PSS SHA-384 round-trip".getBytes("UTF-8")
+    val sig = prepareAndSign(privKey, SignAlgorithm.RsaPssSha384, data)
+    prepareAndVerify(pubKey, SignAlgorithm.RsaPssSha384, data, sig)
+
+  test("RSA-PSS SHA-512 sign-verify round-trip"):
+    val privKey = CryptoKey
+      .rsaPrivate(
+        RfcVectors.rsaModulus,
+        RfcVectors.rsaExponent,
+        RfcVectors.rsaD,
+        RfcVectors.rsaP,
+        RfcVectors.rsaQ,
+        RfcVectors.rsaDp,
+        RfcVectors.rsaDq,
+        RfcVectors.rsaQi
+      )
+      .toOption
+      .get
+    val pubKey = CryptoKey.rsaPublic(RfcVectors.rsaModulus, RfcVectors.rsaExponent).toOption.get
+    val data = "RSA-PSS SHA-512 round-trip".getBytes("UTF-8")
+    val sig = prepareAndSign(privKey, SignAlgorithm.RsaPssSha512, data)
+    prepareAndVerify(pubKey, SignAlgorithm.RsaPssSha512, data, sig)
+
+  test("RSA-PSS produces different signatures on repeated signing (random salt)"):
+    val privKey = CryptoKey
+      .rsaPrivate(
+        RfcVectors.rsaModulus,
+        RfcVectors.rsaExponent,
+        RfcVectors.rsaD,
+        RfcVectors.rsaP,
+        RfcVectors.rsaQ,
+        RfcVectors.rsaDp,
+        RfcVectors.rsaDq,
+        RfcVectors.rsaQi
+      )
+      .toOption
+      .get
+    val data = "RSA-PSS non-determinism test".getBytes("UTF-8")
+    val sig1 = prepareAndSign(privKey, SignAlgorithm.RsaPssSha256, data)
+    val sig2 = prepareAndSign(privKey, SignAlgorithm.RsaPssSha256, data)
+    assertNotEquals(sig1.bytes.toList, sig2.bytes.toList, "RSA-PSS should produce different signatures due to random salt")
+
+  // ---------------------------------------------------------------------------
+  // RSA PKCS#1 SHA-384/512 round-trip tests
+  // ---------------------------------------------------------------------------
+
+  test("RSA PKCS#1 v1.5 SHA-384 sign-verify round-trip"):
+    val privKey = CryptoKey
+      .rsaPrivate(
+        RfcVectors.rsaModulus,
+        RfcVectors.rsaExponent,
+        RfcVectors.rsaD,
+        RfcVectors.rsaP,
+        RfcVectors.rsaQ,
+        RfcVectors.rsaDp,
+        RfcVectors.rsaDq,
+        RfcVectors.rsaQi
+      )
+      .toOption
+      .get
+    val pubKey = CryptoKey.rsaPublic(RfcVectors.rsaModulus, RfcVectors.rsaExponent).toOption.get
+    val data = "RSA PKCS#1 SHA-384 round-trip".getBytes("UTF-8")
+    val sig = prepareAndSign(privKey, SignAlgorithm.RsaPkcs1Sha384, data)
+    prepareAndVerify(pubKey, SignAlgorithm.RsaPkcs1Sha384, data, sig)
+
+  test("RSA PKCS#1 v1.5 SHA-512 sign-verify round-trip"):
+    val privKey = CryptoKey
+      .rsaPrivate(
+        RfcVectors.rsaModulus,
+        RfcVectors.rsaExponent,
+        RfcVectors.rsaD,
+        RfcVectors.rsaP,
+        RfcVectors.rsaQ,
+        RfcVectors.rsaDp,
+        RfcVectors.rsaDq,
+        RfcVectors.rsaQi
+      )
+      .toOption
+      .get
+    val pubKey = CryptoKey.rsaPublic(RfcVectors.rsaModulus, RfcVectors.rsaExponent).toOption.get
+    val data = "RSA PKCS#1 SHA-512 round-trip".getBytes("UTF-8")
+    val sig = prepareAndSign(privKey, SignAlgorithm.RsaPkcs1Sha512, data)
+    prepareAndVerify(pubKey, SignAlgorithm.RsaPkcs1Sha512, data, sig)
+
+  // ---------------------------------------------------------------------------
   // Key-algorithm mismatch tests
   // ---------------------------------------------------------------------------
 
@@ -164,6 +286,56 @@ abstract class CryptoTestSuite extends FunSuite:
     val key = CryptoKey.symmetric(new Array[Byte](32)).toOption.get
     val err = prepareSigningError(key, SignAlgorithm.RsaPkcs1Sha256)
     assert(err.isDefined, "Expected error for key-algorithm mismatch")
+
+  test("preparing EC key with RSA algorithm fails"):
+    val pubKey = CryptoKey.ecPublic(EcCurve.P256, RfcVectors.ecP256X, RfcVectors.ecP256Y).toOption.get
+    val err = prepareSigningError(pubKey, SignAlgorithm.RsaPkcs1Sha256)
+    assert(err.isDefined, "Expected error for EC key with RSA algorithm")
+
+  test("preparing EC P-256 key with P-384 algorithm fails"):
+    val pubKey = CryptoKey.ecPublic(EcCurve.P256, RfcVectors.ecP256X, RfcVectors.ecP256Y).toOption.get
+    val err = prepareSigningError(pubKey, SignAlgorithm.EcdsaP384Sha384)
+    assert(err.isDefined, "Expected error for curve mismatch")
+
+  // ---------------------------------------------------------------------------
+  // Tampered message / wrong key rejection tests
+  // ---------------------------------------------------------------------------
+
+  test("HMAC-SHA256 verification rejects tampered message"):
+    val key = CryptoKey.symmetric(RfcVectors.hmacSha256Key).toOption.get
+    val data = "original message".getBytes("UTF-8")
+    val sig = prepareAndSign(key, SignAlgorithm.HmacSha256, data)
+    val tampered = "tampered message".getBytes("UTF-8")
+    intercept[Throwable]:
+      prepareAndVerify(key, SignAlgorithm.HmacSha256, tampered, sig)
+
+  test("HMAC-SHA256 verification rejects wrong key"):
+    val key1 = CryptoKey.symmetric(RfcVectors.hmacSha256Key).toOption.get
+    val key2Bytes = RfcVectors.hmacSha256Key.clone()
+    key2Bytes(0) = (key2Bytes(0) ^ 0xff).toByte
+    val key2 = CryptoKey.symmetric(key2Bytes).toOption.get
+    val data = "test payload".getBytes("UTF-8")
+    val sig = prepareAndSign(key1, SignAlgorithm.HmacSha256, data)
+    intercept[Throwable]:
+      prepareAndVerify(key2, SignAlgorithm.HmacSha256, data, sig)
+
+  test("RSA PKCS#1 verification rejects tampered message"):
+    val pubKey = CryptoKey.rsaPublic(RfcVectors.rsaModulus, RfcVectors.rsaExponent).toOption.get
+    val tampered = "tampered".getBytes("UTF-8")
+    intercept[Throwable]:
+      prepareAndVerify(
+        pubKey,
+        SignAlgorithm.RsaPkcs1Sha256,
+        tampered,
+        Signature.raw(RfcVectors.rsaSha256ExpectedSignature)
+      )
+
+  test("ECDSA P-256 verification rejects tampered message"):
+    val pubKey = CryptoKey.ecPublic(EcCurve.P256, RfcVectors.ecP256X, RfcVectors.ecP256Y).toOption.get
+    val tampered = "tampered".getBytes("UTF-8")
+    val sig = Signature.ecdsaConcat(RfcVectors.ecdsaP256ExpectedSignature, EcCurve.P256).toOption.get
+    intercept[Throwable]:
+      prepareAndVerify(pubKey, SignAlgorithm.EcdsaP256Sha256, tampered, sig)
 
   // ---------------------------------------------------------------------------
   // Digest tests

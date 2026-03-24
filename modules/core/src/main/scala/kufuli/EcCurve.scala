@@ -22,7 +22,7 @@ package kufuli
 
 import java.math.BigInteger
 
-/** NIST elliptic curve identifiers for ECDSA operations. */
+/** NIST elliptic curve identifiers for ECDSA operations per NIST FIPS 186-5 (February 2023). */
 enum EcCurve derives CanEqual:
   case P256, P384, P521
 
@@ -30,19 +30,19 @@ object EcCurve:
 
   extension (curve: EcCurve)
 
-    /** Byte length of a single coordinate component (R or S) per RFC 7518 ss6.2.1.2. */
+    /** Byte length of a single coordinate component (R or S) per RFC 7518 (May 2015) ss6.2.1.2. */
     inline def componentLength: Int = curve match
       case P256 => 32
       case P384 => 48
       case P521 => 66
 
-    /** Curve order (n) from NIST FIPS 186-4. */
+    /** Curve order (n) from NIST FIPS 186-5 (February 2023). */
     def order: BigInteger = EcCurveConstants.order(curve)
 
-    /** Curve prime field modulus (p) from NIST FIPS 186-4. */
+    /** Curve prime field modulus (p) from NIST FIPS 186-5 (February 2023). */
     def prime: BigInteger = EcCurveConstants.prime(curve)
 
-    /** JWK "crv" parameter value per RFC 7518 ss6.2.1.1. */
+    /** JWK "crv" parameter value per RFC 7518 (May 2015) ss6.2.1.1. */
     inline def jwkName: String = curve match
       case P256 => "P-256"
       case P384 => "P-384"

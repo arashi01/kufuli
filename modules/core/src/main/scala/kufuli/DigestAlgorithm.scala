@@ -20,7 +20,9 @@
  */
 package kufuli
 
-/** Cryptographic hash algorithm identifiers for digest operations. */
+/** Cryptographic hash algorithm identifiers for digest operations per NIST FIPS 180-4 (August
+  * 2015).
+  */
 enum DigestAlgorithm derives CanEqual:
   case Sha1, Sha256, Sha384, Sha512
 

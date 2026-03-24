@@ -25,8 +25,8 @@ import java.math.BigInteger
 /** Weierstrass curve parameters (a, b) for the equation y^2 = x^3 + ax + b mod p. */
 final private[kufuli] case class CurveParams(a: BigInteger, b: BigInteger)
 
-/** NIST FIPS 186-4 / SEC 2 elliptic curve constants. All values are cross-platform pure BigInteger
-  * constants - no JCA dependency.
+/** NIST FIPS 186-5 (February 2023) / SEC 2 v2 (January 2010) elliptic curve constants. All values
+  * are cross-platform pure BigInteger constants - no JCA dependency.
   */
 private[kufuli] object EcCurveConstants:
 

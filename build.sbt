@@ -21,6 +21,8 @@ inThisBuild(
 
 val libraries = new {
   val boilerplate = Def.setting("io.github.arashi01" %%% "boilerplate" % "0.6.0")
+  val `jsoniter-scala-core` = Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % "2.38.9")
+  val `jsoniter-scala-macros` = Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-macros" % "2.38.9")
   val munit = Def.setting("org.scalameta" %%% "munit" % "1.2.4")
   val `munit-scalacheck` = Def.setting("org.scalameta" %%% "munit-scalacheck" % "1.2.0")
   val `munit-zio` = Def.setting("com.github.poslegm" %%% "munit-zio" % "0.4.0")
@@ -117,6 +119,12 @@ val `kufuli-zio-tests` =
     .nativeSettings(nativeCryptoLinkSettings)
     .jsSettings(jsSettings)
     .settings(libraryDependencies += libraries.zio.value)
+    .jvmSettings(
+      libraryDependencies ++= List(
+        libraries.`jsoniter-scala-core`.value % Test,
+        libraries.`jsoniter-scala-macros`.value % Test
+      )
+    )
 
 val `kufuli-jvm` =
   project

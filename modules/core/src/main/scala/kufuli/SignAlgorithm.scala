@@ -20,22 +20,24 @@
  */
 package kufuli
 
-/** Signing algorithm identifiers for all supported JWS algorithm families. */
+/** Signing algorithm identifiers for all supported JWS algorithm families per RFC 7518 (JWA, May
+  * 2015) and RFC 8037 (January 2018).
+  */
 enum SignAlgorithm derives CanEqual:
 
-  // HMAC with SHA-2 (RFC 7518 ss3.2)
+  // HMAC with SHA-2 per RFC 7518 (May 2015) ss3.2
   case HmacSha256, HmacSha384, HmacSha512
 
-  // RSASSA-PKCS1-v1_5 (RFC 7518 ss3.3)
+  // RSASSA-PKCS1-v1_5 per RFC 7518 (May 2015) ss3.3 and RFC 8017 (PKCS#1 v2.2, November 2016)
   case RsaPkcs1Sha256, RsaPkcs1Sha384, RsaPkcs1Sha512
 
-  // RSASSA-PSS (RFC 7518 ss3.5)
+  // RSASSA-PSS per RFC 7518 (May 2015) ss3.5 and RFC 8017 (PKCS#1 v2.2, November 2016)
   case RsaPssSha256, RsaPssSha384, RsaPssSha512
 
-  // ECDSA (RFC 7518 ss3.4)
+  // ECDSA per RFC 7518 (May 2015) ss3.4 and NIST FIPS 186-5 (February 2023)
   case EcdsaP256Sha256, EcdsaP384Sha384, EcdsaP521Sha512
 
-  // EdDSA (RFC 8037)
+  // EdDSA per RFC 8037 (January 2018) and RFC 8032 (January 2017)
   case Ed25519, Ed448
 end SignAlgorithm
 
@@ -52,7 +54,7 @@ object SignAlgorithm:
       case HmacSha512 | RsaPkcs1Sha512 | RsaPssSha512 | EcdsaP521Sha512 => Some(DigestAlgorithm.Sha512)
       case Ed25519 | Ed448                                              => None
 
-    /** JWS "alg" header value per RFC 7518 ss3.1. */
+    /** JWS "alg" header value per RFC 7518 (May 2015) ss3.1. */
     inline def jwsName: String = inline alg match
       case HmacSha256      => "HS256"
       case HmacSha384      => "HS384"

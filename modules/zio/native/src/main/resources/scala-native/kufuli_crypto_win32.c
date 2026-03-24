@@ -111,9 +111,11 @@ static ULONG ec_component_len(int alg_id) {
     }
 }
 
-/* Constant-time memory comparison. Returns 0 if equal, non-zero otherwise. */
+/* Constant-time memory comparison. Returns 0 if equal, non-zero otherwise.
+ * The volatile qualifier prevents the compiler from optimising the XOR
+ * accumulation into a short-circuit branch. */
 static int ct_compare(const unsigned char *a, const unsigned char *b, size_t len) {
-    unsigned char diff = 0;
+    volatile unsigned char diff = 0;
     for (size_t i = 0; i < len; i++)
         diff |= a[i] ^ b[i];
     return diff;

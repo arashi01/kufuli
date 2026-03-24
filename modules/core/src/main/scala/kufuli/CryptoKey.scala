@@ -81,13 +81,19 @@ object CryptoKey:
     SecurityChecks.validatePointOnCurve(curve, x, y).map(_ => EcPublic(curve, x.clone(), y.clone()))
 
   def ecPrivate(curve: EcCurve, x: Array[Byte], y: Array[Byte], d: Array[Byte]): Either[KufuliError, CryptoKey] =
-    SecurityChecks.validatePointOnCurve(curve, x, y).map(_ => EcPrivate(curve, x.clone(), y.clone(), d.clone()))
+    for
+      _ <- SecurityChecks.validatePointOnCurve(curve, x, y)
+      _ <- SecurityChecks.validateEcPrivateScalar(curve, d)
+    yield EcPrivate(curve, x.clone(), y.clone(), d.clone())
 
   def okpPublic(curve: OkpCurve, x: Array[Byte]): Either[KufuliError, CryptoKey] =
     SecurityChecks.validateOkpKeyLength(curve, x).map(_ => OkpPublic(curve, x.clone()))
 
   def okpPrivate(curve: OkpCurve, x: Array[Byte], d: Array[Byte]): Either[KufuliError, CryptoKey] =
-    SecurityChecks.validateOkpKeyLength(curve, x).map(_ => OkpPrivate(curve, x.clone(), d.clone()))
+    for
+      _ <- SecurityChecks.validateOkpKeyLength(curve, x)
+      _ <- SecurityChecks.validateOkpPrivateKeyLength(curve, d)
+    yield OkpPrivate(curve, x.clone(), d.clone())
 
   /** Value-based equality for two crypto keys. All byte array fields are compared using
     * constant-time comparison to prevent timing side-channel leakage of key material.
