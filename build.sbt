@@ -65,6 +65,7 @@ val `kufuli-zio` =
     .settings(publishSettings)
     .settings(description := "ZIO typeclass traits and platform-specific crypto backends")
     .nativeSettings(nativeSettings)
+    .nativeSettings(nativeCryptoLinkSettings)
     .jsSettings(jsSettings)
     .jsSettings(Compile / doc / sources := Nil) // Scala 3 doc compiler cannot resolve overloaded @js.native methods in NodeCrypto
     .jsConfigure(_.dependsOn(`kufuli-js-shared`))
@@ -113,6 +114,7 @@ val `kufuli-zio-tests` =
     .settings(publish / skip := true)
     .settings(description := "ZIO test instantiation for kufuli testkit")
     .nativeSettings(nativeSettings)
+    .nativeSettings(nativeCryptoLinkSettings)
     .jsSettings(jsSettings)
     .settings(libraryDependencies += libraries.zio.value)
 
@@ -167,6 +169,19 @@ def jsSettings = List(
 
 def nativeSettings = List(
   dependencyOverrides += "org.scala-native" %%% "test-interface" % buildinfo.BuildInfo.scalaNativeVersion % Test
+)
+
+// Platform crypto library linking - only for modules containing or depending on C FFI code
+def nativeCryptoLinkSettings = List(
+  nativeConfig ~= { c =>
+    val os = System.getProperty("os.name").toLowerCase
+    if (os.contains("linux"))
+      c.withLinkingOptions(c.linkingOptions ++ Seq("-lssl", "-lcrypto"))
+    else if (os.contains("mac") || os.contains("darwin"))
+      c.withLinkingOptions(c.linkingOptions ++ Seq("-framework", "Security", "-framework", "CoreFoundation"))
+    else
+      c
+  }
 )
 
 def baseCompilerOptions = List(

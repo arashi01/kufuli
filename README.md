@@ -1,6 +1,6 @@
 # kufuli
 
-**kufuli** - Swahili for _lock_: cross-platform cryptographic signing, verification, and hashing for Scala 3 on JVM, Node.js, browsers and Native (planned).
+**kufuli** - Swahili for _lock_: cross-platform cryptographic signing, verification, and hashing for Scala 3 on JVM, Node.js, browsers and Native.
 
 kufuli provides a unified API over platform-native crypto engines - JCA on JVM, Node.js `crypto` module, and Web Crypto `SubtleCrypto` in browsers. All operations return typed errors via ZIO.
 
@@ -24,7 +24,7 @@ libraryDependencies += "io.github.arashi01" % "kufuli-zio-browser" % "<version>"
 | ECDSA | `EcdsaP256Sha256`, `EcdsaP384Sha384`, `EcdsaP521Sha512` | ES256, ES384, ES512 |
 | EdDSA | `Ed25519`, `Ed448` | EdDSA |
 
-Ed448 is not supported on the Web Crypto backend (browser limitation).
+Ed448 is not supported on the Web Crypto or Native backends. Ed25519 is not supported on the Web Crypto backend (browser limitation).
 
 Digest algorithms: `Sha1`, `Sha256`, `Sha384`, `Sha512`.
 
@@ -99,6 +99,9 @@ Platform `given` instances are resolved automatically via `import kufuli.zio.giv
 | JVM | `kufuli-zio` | JCA (`java.security`, `javax.crypto`) |
 | Node.js (Scala.js) | `kufuli-zio` | Node.js `crypto` module |
 | Browser (Scala.js) | `kufuli-zio-browser` | Web Crypto `SubtleCrypto` |
+| Native (Linux) | `kufuli-zio` | OpenSSL EVP |
+| Native (macOS) | `kufuli-zio` | Security.framework (planned) |
+| Native (Windows) | `kufuli-zio` | BCrypt (planned) |
 
 ### Security
 
