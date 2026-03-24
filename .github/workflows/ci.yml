@@ -130,19 +130,21 @@ jobs:
       - name: Set up Coursier cache
         uses: coursier/cache-action@v8
 
+      # Scala Native toolchain + platform crypto dependencies
+      # Linux: OpenSSL (EVP API), macOS: Security.framework (built-in), Windows: BCrypt (built-in)
       - name: Install LLVM/Clang toolchain (Ubuntu)
         if: startsWith(matrix.os, 'ubuntu')
         shell: bash
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y clang lld llvm libuv1-dev libssl-dev
+          sudo apt-get install -y clang lld llvm libssl-dev
 
       - name: Install LLVM toolchain (macOS)
         if: startsWith(matrix.os, 'macos')
         shell: bash
         run: |
           brew update
-          brew install llvm libuv openssl@3 || true
+          brew install llvm || true
           echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
 
       - name: Install LLVM toolchain (Windows)
@@ -150,11 +152,7 @@ jobs:
         shell: pwsh
         run: |
           choco install -y llvm
-          vcpkg install libuv:x64-windows openssl:x64-windows
           echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          echo "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          echo "LIBRARY_PATH=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "C_INCLUDE_PATH=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\include" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Test
         run: sbt --no-colors --supershell=false "kufuli-native/test"
