@@ -49,6 +49,9 @@ object Digest:
       )
     )
 
+  /** Runtime digest output length. Mirrors [[DigestAlgorithm$.outputLength]] which is `inline` and
+    * requires compile-time known values.
+    */
   private def digestLength(alg: DigestAlgorithm): Int = alg match
     case DigestAlgorithm.Sha1   => 20
     case DigestAlgorithm.Sha256 => 32

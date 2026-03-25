@@ -25,6 +25,11 @@ import java.util.Base64
 /** RFC test vectors for verifying cryptographic backend implementations. All byte arrays are
   * pre-computed from authoritative RFC sources.
   *
+  * Sources:
+  *   - RFC 7515 (JWS, May 2015) Appendices A.1 (HMAC-SHA256), A.2 (RSA PKCS#1 SHA-256), A.3 (ECDSA
+  *     P-256 SHA-256)
+  *   - NIST FIPS 180-4 (SHA, August 2015) for SHA digest known-answer vectors
+  *
   * @see [[CryptoTestSuite$ CryptoTestSuite]] for abstract test suites consuming these vectors
   */
 object RfcVectors:

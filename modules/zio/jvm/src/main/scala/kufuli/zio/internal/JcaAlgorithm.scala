@@ -48,7 +48,11 @@ private[kufuli] object JcaAlgorithm:
       case SignAlgorithm.Ed25519         => "EdDSA"
       case SignAlgorithm.Ed448           => "EdDSA"
 
-    /** RSA-PSS parameter spec. Only meaningful for PSS algorithms. */
+    /** RSA-PSS parameter spec per RFC 8017 (PKCS#1 v2.2, November 2016). Salt length = hash output
+      * length (32/48/64 bytes for SHA-256/384/512). All platform backends use this same salt length
+      * convention: OpenSSL `pss_salt_len`, macOS Security.framework default, BCrypt `cbSalt`, and
+      * Node.js `RSA_PSS_SALTLEN_DIGEST`.
+      */
     def pssParams: Option[PSSParameterSpec] = alg match
       case SignAlgorithm.RsaPssSha256 => Some(PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1))
       case SignAlgorithm.RsaPssSha384 => Some(PSSParameterSpec("SHA-384", "MGF1", MGF1ParameterSpec.SHA384, 48, 1))

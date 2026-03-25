@@ -789,6 +789,8 @@ static int asym_sign(int alg_id,
     /* Sign */
     if (is_rsa(alg_id)) {
         if (is_pss(alg_id)) {
+            /* Salt length = hash output length per RFC 8017 (PKCS#1 v2.2, November 2016).
+             * Matches JCA PSSParameterSpec, OpenSSL pss_salt_len, Node.js RSA_PSS_SALTLEN_DIGEST. */
             BCRYPT_PSS_PADDING_INFO pss_info;
             pss_info.pszAlgId = hash_alg_id;
             pss_info.cbSalt = hash_len;

@@ -30,44 +30,39 @@ import com.github.plokhotnyuk.jsoniter_scala.macros.JsonCodecMaker
 import munit.FunSuite
 
 import kufuli.CryptoKey
-import kufuli.EcCurve
 import kufuli.KufuliError
 import kufuli.SignAlgorithm
 import kufuli.Signature
 import kufuli.zio.given
 
-/** Wycheproof ECDSA test vectors (google/wycheproof testvectors_v1).
+/** Wycheproof RSA test vectors (google/wycheproof testvectors_v1).
   *
-  * Loads DER-encoded ECDSA signature vectors and verifies that:
-  *   - "valid" vectors pass both DER parsing and cryptographic verification
-  *   - "invalid" vectors are rejected (either at DER parsing or verification)
-  *   - no vector causes a crash or exception leak
+  * Tests RSA PKCS#1 v1.5 (RFC 8017 (November 2016)) and RSA-PSS (RFC 8017) signature verification
+  * vectors.
   */
-class WycheproofEcdsaSuite extends FunSuite:
+class WycheproofRsaSuite extends FunSuite:
 
   private def tryRun[A](zio: ZIO[Any, KufuliError, A]): Either[KufuliError, A] =
     Unsafe.unsafe { u ?=>
       Runtime.default.unsafe.run(zio.either).getOrThrowFiberFailure()
     }
 
-  // -- JSON model for Wycheproof ECDSA vectors --
+  // -- JSON model for Wycheproof RSA vectors --
 
   private case class WycheproofSuite(
-    algorithm: String,
     numberOfTests: Int,
     testGroups: List[TestGroup]
   )
 
   private case class TestGroup(
-    publicKey: PublicKeyInfo,
     sha: String,
+    publicKey: PublicKeyInfo,
     tests: List[TestVector]
   )
 
   private case class PublicKeyInfo(
-    curve: String,
-    wx: String,
-    wy: String
+    modulus: String,
+    publicExponent: String
   )
 
   private case class TestVector(
@@ -83,8 +78,6 @@ class WycheproofEcdsaSuite extends FunSuite:
   private given JsonValueCodec[PublicKeyInfo] = JsonCodecMaker.make
   private given JsonValueCodec[TestVector] = JsonCodecMaker.make
 
-  // -- Hex decoding --
-
   private def hexToBytes(hex: String): Array[Byte] =
     if hex.isEmpty then Array.empty[Byte]
     else
@@ -94,22 +87,13 @@ class WycheproofEcdsaSuite extends FunSuite:
         .map(pair => ((Character.digit(pair.charAt(0), 16) << 4) + Character.digit(pair.charAt(1), 16)).toByte)
         .toArray
 
-  // -- Curve/algorithm resolution --
+  // Strip leading zero byte from hex-decoded unsigned integers
+  private def stripLeadingZero(bytes: Array[Byte]): Array[Byte] =
+    bytes.dropWhile(_ == 0) match
+      case a if a.isEmpty => Array(0.toByte)
+      case a              => a
 
-  private def curveFromName(name: String): EcCurve = name match
-    case "secp256r1" => EcCurve.P256
-    case "secp384r1" => EcCurve.P384
-    case "secp521r1" => EcCurve.P521
-    case other       => fail(s"Unsupported curve: $other")
-
-  private def algorithmForCurve(curve: EcCurve): SignAlgorithm = curve match
-    case EcCurve.P256 => SignAlgorithm.EcdsaP256Sha256
-    case EcCurve.P384 => SignAlgorithm.EcdsaP384Sha384
-    case EcCurve.P521 => SignAlgorithm.EcdsaP521Sha512
-
-  // -- Test runner --
-
-  private def loadAndTest(resourcePath: String): Unit =
+  private def loadAndTest(resourcePath: String, algorithm: SignAlgorithm): Unit =
     // scalafix:off DisableSyntax.null; Java interop: getResourceAsStream returns null on missing resource
     val stream = getClass.getResourceAsStream(resourcePath)
     assert(stream != null, s"Resource not found: $resourcePath")
@@ -123,64 +107,47 @@ class WycheproofEcdsaSuite extends FunSuite:
     // scalafix:on
 
     suite.testGroups.foreach { group =>
-      val curve = curveFromName(group.publicKey.curve)
-      val algorithm = algorithmForCurve(curve)
-      val wx = hexToBytes(group.publicKey.wx)
-      val wy = hexToBytes(group.publicKey.wy)
-
-      // Some test groups have invalid public keys that we should reject at construction
-      val keyResult = CryptoKey.ecPublic(curve, wx, wy)
+      val modulus = stripLeadingZero(hexToBytes(group.publicKey.modulus))
+      val exponent = stripLeadingZero(hexToBytes(group.publicKey.publicExponent))
+      val keyResult = CryptoKey.rsaPublic(modulus, exponent)
 
       group.tests.foreach { tv =>
-        val sigDer = hexToBytes(tv.sig)
+        val sigBytes = hexToBytes(tv.sig)
         val msg = hexToBytes(tv.msg)
 
         tv.result match
           case "valid" =>
-            // Valid vectors must: parse DER, construct key, verify signature
-            val sigResult = Signature.ecdsaDer(sigDer, curve)
             keyResult match
               case Right(pubKey) =>
-                sigResult match
-                  case Right(sig) =>
-                    val verifyResult = tryRun(pubKey.prepareVerifying(algorithm).flatMap(_.verify(msg, sig)))
-                    if verifyResult.isRight then passed += 1
-                    else
-                      failed += 1
-                      fail(s"tcId=${tv.tcId}: valid vector failed verification: ${tv.comment}")
-                  case Left(err) =>
-                    failed += 1
-                    fail(s"tcId=${tv.tcId}: valid vector failed DER parsing: $err")
+                val verifyResult = tryRun(
+                  pubKey.prepareVerifying(algorithm).flatMap(_.verify(msg, Signature.raw(sigBytes)))
+                )
+                if verifyResult.isRight then passed += 1
+                else
+                  failed += 1
+                  fail(s"tcId=${tv.tcId}: valid vector failed verification: ${tv.comment}")
               case Left(_) =>
-                // Invalid public key in a "valid" test group - not our concern
-                ()
-            end match
+                failed += 1
+                fail(s"tcId=${tv.tcId}: valid vector failed key construction")
 
           case "invalid" =>
-            // Invalid vectors must be rejected at some layer (DER, validation, or verification)
-            val sigResult = Signature.ecdsaDer(sigDer, curve)
-            (keyResult, sigResult) match
-              case (Left(_), _) =>
-                // Rejected at key construction - acceptable
-                passed += 1
-              case (_, Left(_)) =>
-                // Rejected at DER parsing or signature validation - good
-                passed += 1
-              case (Right(pubKey), Right(sig)) =>
-                // Both parsed - must fail at verification
-                val verifyResult = tryRun(pubKey.prepareVerifying(algorithm).flatMap(_.verify(msg, sig)))
+            keyResult match
+              case Left(_)       => passed += 1
+              case Right(pubKey) =>
+                val verifyResult = tryRun(
+                  pubKey.prepareVerifying(algorithm).flatMap(_.verify(msg, Signature.raw(sigBytes)))
+                )
                 if verifyResult.isLeft then passed += 1
                 else
                   failed += 1
                   fail(s"tcId=${tv.tcId}: invalid vector accepted: ${tv.comment}")
-            end match
 
           case "acceptable" =>
-            // Acceptable vectors may pass or fail - just ensure no crash
-            val sigResult = Signature.ecdsaDer(sigDer, curve)
-            (keyResult, sigResult) match
-              case (Right(pubKey), Right(sig)) =>
-                val _ = tryRun(pubKey.prepareVerifying(algorithm).flatMap(_.verify(msg, sig))): Unit
+            keyResult match
+              case Right(pubKey) =>
+                val _ = tryRun(
+                  pubKey.prepareVerifying(algorithm).flatMap(_.verify(msg, Signature.raw(sigBytes)))
+                ): Unit
               case _ => ()
             passed += 1
 
@@ -193,15 +160,13 @@ class WycheproofEcdsaSuite extends FunSuite:
     assert(passed > 0, s"No vectors passed for $resourcePath")
   end loadAndTest
 
-  // -- Test cases --
+  test("Wycheproof RSA PKCS#1 v1.5 SHA-256 vectors"):
+    loadAndTest("/wycheproof/rsa_signature_2048_sha256_test.json", SignAlgorithm.RsaPkcs1Sha256)
 
-  test("Wycheproof ECDSA P-256 SHA-256 vectors"):
-    loadAndTest("/wycheproof/ecdsa_secp256r1_sha256_test.json")
+  test("Wycheproof RSA-PSS SHA-256 (salt=32) vectors"):
+    loadAndTest("/wycheproof/rsa_pss_2048_sha256_mgf1_32_test.json", SignAlgorithm.RsaPssSha256)
 
-  test("Wycheproof ECDSA P-384 SHA-384 vectors"):
-    loadAndTest("/wycheproof/ecdsa_secp384r1_sha384_test.json")
+  test("Wycheproof RSA-PSS SHA-384 (salt=48) vectors"):
+    loadAndTest("/wycheproof/rsa_pss_2048_sha384_mgf1_48_test.json", SignAlgorithm.RsaPssSha384)
 
-  test("Wycheproof ECDSA P-521 SHA-512 vectors"):
-    loadAndTest("/wycheproof/ecdsa_secp521r1_sha512_test.json")
-
-end WycheproofEcdsaSuite
+end WycheproofRsaSuite

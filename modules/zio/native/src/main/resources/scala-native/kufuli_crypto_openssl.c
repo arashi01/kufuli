@@ -4,14 +4,15 @@
  *
  * Linux OpenSSL EVP backend for kufuli cryptographic operations.
  * Uses EVP_DigestSign/EVP_DigestVerify for asymmetric operations,
- * HMAC() for symmetric MAC, and EVP_Digest for hashing.
+ * EVP_MAC for symmetric HMAC, and EVP_Digest for hashing.
  */
 #include "kufuli_crypto.h"
 
 #if defined(__linux__) || defined(KUFULI_USE_OPENSSL)
 
 #include <openssl/evp.h>
-#include <openssl/hmac.h>
+#include <openssl/core_names.h>
+#include <openssl/params.h>
 #include <openssl/crypto.h>
 #include <openssl/rsa.h>
 #include <openssl/x509.h>
@@ -57,6 +58,16 @@ static int is_hmac(int alg_id) {
     return alg_id >= KUFULI_ALG_HMAC_SHA256 && alg_id <= KUFULI_ALG_HMAC_SHA512;
 }
 
+/* Digest name string for OSSL_PARAM in EVP_MAC HMAC. */
+static const char* get_hmac_digest_name(int alg_id) {
+    switch (alg_id) {
+        case KUFULI_ALG_HMAC_SHA256: return "SHA256";
+        case KUFULI_ALG_HMAC_SHA384: return "SHA384";
+        case KUFULI_ALG_HMAC_SHA512: return "SHA512";
+        default:                     return NULL;
+    }
+}
+
 static int is_pss(int alg_id) {
     return alg_id >= KUFULI_ALG_RSA_PSS_SHA256 && alg_id <= KUFULI_ALG_RSA_PSS_SHA512;
 }
@@ -65,6 +76,8 @@ static int is_eddsa(int alg_id) {
     return alg_id == KUFULI_ALG_ED25519 || alg_id == KUFULI_ALG_ED448;
 }
 
+/* RSA-PSS salt length = hash output length per RFC 8017 (PKCS#1 v2.2, November 2016).
+ * All platform backends (JCA, BCrypt, macOS, Node.js) use this same convention. */
 static int pss_salt_len(int alg_id) {
     switch (alg_id) {
         case KUFULI_ALG_RSA_PSS_SHA256: return 32;
@@ -82,18 +95,34 @@ static int hmac_sign(int alg_id,
                      const unsigned char* key, size_t key_len,
                      const unsigned char* data, size_t data_len,
                      unsigned char* sig_out, size_t* sig_len) {
-    const EVP_MD* md = get_sign_digest(alg_id);
-    if (!md) return KUFULI_ERR_UNSUPPORTED;
+    const char* digest_name = get_hmac_digest_name(alg_id);
+    if (!digest_name) return KUFULI_ERR_UNSUPPORTED;
 
-    unsigned int hmac_len = 0;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-    unsigned char* result = HMAC(md, key, (int)key_len, data, data_len,
-                                 sig_out, &hmac_len);
-#pragma GCC diagnostic pop
-    if (!result) return KUFULI_ERR_SIGN_FAILED;
-    *sig_len = hmac_len;
-    return KUFULI_OK;
+    /* EVP_MAC API (OpenSSL 3.0+) replaces deprecated HMAC(). */
+    EVP_MAC* mac = EVP_MAC_fetch(NULL, "HMAC", NULL);
+    if (!mac) return KUFULI_ERR_SIGN_FAILED;
+
+    EVP_MAC_CTX* ctx = EVP_MAC_CTX_new(mac);
+    if (!ctx) { EVP_MAC_free(mac); return KUFULI_ERR_SIGN_FAILED; }
+
+    OSSL_PARAM params[2];
+    params[0] = OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_DIGEST,
+                                                  (char*)digest_name, 0);
+    params[1] = OSSL_PARAM_construct_end();
+
+    int rc = KUFULI_ERR_SIGN_FAILED;
+    if (EVP_MAC_init(ctx, key, key_len, params) != 1) goto cleanup;
+    if (EVP_MAC_update(ctx, data, data_len) != 1) goto cleanup;
+
+    size_t out_len = *sig_len;
+    if (EVP_MAC_final(ctx, sig_out, &out_len, out_len) != 1) goto cleanup;
+    *sig_len = out_len;
+    rc = KUFULI_OK;
+
+cleanup:
+    EVP_MAC_CTX_free(ctx);
+    EVP_MAC_free(mac);
+    return rc;
 }
 
 /* --------------------------------------------------------------------------
@@ -105,7 +134,7 @@ static int hmac_verify(int alg_id,
                        const unsigned char* data, size_t data_len,
                        const unsigned char* sig, size_t sig_len) {
     unsigned char computed[EVP_MAX_MD_SIZE];
-    size_t computed_len = 0;
+    size_t computed_len = EVP_MAX_MD_SIZE;
 
     int rc = hmac_sign(alg_id, key, key_len, data, data_len,
                        computed, &computed_len);

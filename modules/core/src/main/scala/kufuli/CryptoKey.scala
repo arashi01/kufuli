@@ -29,6 +29,13 @@ package kufuli
   * material. `CanEqual` is intentionally omitted: the `==` operator would use reference equality
   * for array fields, producing silently wrong results. Under strict equality this is a compile
   * error, forcing use of [[CryptoKey$.contentEquals]] for value-based comparison.
+  *
+  * '''Sensitive memory threat model:''' Key material is held in JVM-managed `Array[Byte]` (on JVM)
+  * or GC-managed memory (on JS/Native). It is NOT zeroed after use and may persist in memory until
+  * garbage-collected. On Native, zone-allocated copies used for C FFI calls are freed when the
+  * `Zone` exits, but are also not explicitly zeroed. This is a known limitation: JVM and JS
+  * runtimes do not provide reliable memory zeroing guarantees. Applications handling key material
+  * with stricter requirements should manage key lifecycle at a higher layer.
   */
 enum CryptoKey:
   private[kufuli] case Symmetric(bytes: Array[Byte])

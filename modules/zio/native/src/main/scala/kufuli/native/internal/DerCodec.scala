@@ -26,8 +26,11 @@ import _root_.kufuli.OkpCurve
 
 /** ASN.1 DER encoding of [[kufuli.CryptoKey CryptoKey]] variants for the Native C layer.
   *
-  * Returns raw bytes for symmetric keys, SubjectPublicKeyInfo DER for public keys, and PKCS#8 DER
-  * for private keys.
+  * Returns raw bytes for symmetric keys, SubjectPublicKeyInfo (RFC 5280 (May 2008)) DER for public
+  * keys, and PKCS#8 PrivateKeyInfo (RFC 5958 (August 2010)) DER for private keys. EC private keys
+  * use the ECPrivateKey structure from RFC 5915 (June 2010). EdDSA key encoding follows RFC 8410
+  * (August 2018). RSA keys use PKCS#1 (RFC 8017 (November 2016)) structures wrapped in the
+  * appropriate outer format.
   */
 private[kufuli] object DerCodec:
 
