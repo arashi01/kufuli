@@ -343,6 +343,7 @@ static int hmac_sign(int alg_id,
     CCHmacAlgorithm cc_alg = get_hmac_alg(alg_id);
     size_t mac_len = get_hmac_len(alg_id);
     if (mac_len == 0) return KUFULI_ERR_UNSUPPORTED;
+    if (*sig_len < mac_len) return KUFULI_ERR_SIGN_FAILED;
 
     CCHmac(cc_alg, key, key_len, data, data_len, sig_out);
     *sig_len = mac_len;
@@ -358,7 +359,7 @@ static int hmac_verify(int alg_id,
                        const unsigned char* data, size_t data_len,
                        const unsigned char* sig, size_t sig_len) {
     unsigned char computed[CC_SHA512_DIGEST_LENGTH]; /* large enough for any HMAC */
-    size_t computed_len = 0;
+    size_t computed_len = CC_SHA512_DIGEST_LENGTH;
 
     int rc = hmac_sign(alg_id, key, key_len, data, data_len,
                        computed, &computed_len);

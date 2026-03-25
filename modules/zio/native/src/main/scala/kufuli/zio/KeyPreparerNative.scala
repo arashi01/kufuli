@@ -40,7 +40,7 @@ given KeyPreparer with
   extension (key: CryptoKey)
 
     def prepareSigning(algorithm: SignAlgorithm): IO[KufuliError, PreparedKey[Signing]] =
-      prepareNative(key, algorithm).map(PreparedKey.wrapKey[Signing])
+      ZIO.fromEither(SecurityChecks.validateSigningRole(key)).flatMap(_ => prepareNative(key, algorithm)).map(PreparedKey.wrapKey[Signing])
 
     def prepareVerifying(algorithm: SignAlgorithm): IO[KufuliError, PreparedKey[Verifying]] =
       prepareNative(key, algorithm).map(PreparedKey.wrapKey[Verifying])

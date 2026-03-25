@@ -25,11 +25,11 @@ import java.math.BigInteger
 /** Three-phase security validation for cryptographic operations.
   *
   *   - Phase 1: Key construction (point-on-curve, RSA key size per NIST SP 800-131A Rev. 2 (March
-  *     2019), CRT, EC scalar, OKP key length)
-  *   - Phase 2: Key preparation (algorithm-key compatibility, HMAC minimum key size per RFC 7518
-  *     (May 2015) ss3.2)
-  *   - Phase 3: Pre-verification (ECDSA signature validation per CVE-2022-21449, EdDSA signature
-  *     length per RFC 8032 (January 2017))
+  *     2019), CRT invariant, EC private scalar range, OKP key length)
+  *   - Phase 2: Key preparation (algorithm-key compatibility, signing direction - public keys
+  *     rejected for signing, HMAC minimum key size per RFC 7518 (May 2015) ss3.2)
+  *   - Phase 3: Pre-verification (ECDSA signature component range per CVE-2022-21449 / NIST FIPS
+  *     186-5 (February 2023), EdDSA signature length per RFC 8032 (January 2017))
   */
 private[kufuli] object SecurityChecks:
 
@@ -149,6 +149,15 @@ private[kufuli] object SecurityChecks:
   // ---------------------------------------------------------------------------
   // Phase 2: Key-algorithm compatibility (called from KeyPreparer implementations)
   // ---------------------------------------------------------------------------
+
+  /** Validates that a key can produce signatures. Symmetric keys can both sign and verify; for
+    * asymmetric algorithms, only private keys can sign.
+    */
+  def validateSigningRole(key: CryptoKey): Either[KufuliError, Unit] =
+    import CryptoKey.*
+    key match
+      case _: Symmetric | _: RsaPrivate | _: EcPrivate | _: OkpPrivate => Right(())
+      case _ => Left(KufuliError.InvalidKey("Public keys cannot be used for signing"))
 
   /** Validates that a key is compatible with a signing algorithm, including HMAC minimum key size
     * per RFC 7518 (May 2015) ss3.2.

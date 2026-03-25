@@ -98,10 +98,10 @@ class WycheproofEcdsaP1363Suite extends FunSuite:
     case EcCurve.P384 => SignAlgorithm.EcdsaP384Sha384
     case EcCurve.P521 => SignAlgorithm.EcdsaP521Sha512
 
-  test("Wycheproof ECDSA P-256 SHA-256 P1363 (R||S) vectors"):
+  private def loadAndTest(resourcePath: String): Unit =
     // scalafix:off DisableSyntax.null; Java interop: getResourceAsStream returns null on missing resource
-    val stream = getClass.getResourceAsStream("/wycheproof/ecdsa_secp256r1_sha256_p1363_test.json")
-    assert(stream != null, "Resource not found: /wycheproof/ecdsa_secp256r1_sha256_p1363_test.json")
+    val stream = getClass.getResourceAsStream(resourcePath)
+    assert(stream != null, s"Resource not found: $resourcePath")
     // scalafix:on
     val suite = readFromStream[WycheproofSuite](stream)
     stream.close()
@@ -124,7 +124,6 @@ class WycheproofEcdsaP1363Suite extends FunSuite:
 
         tv.result match
           case "valid" =>
-            // P1363 signatures are already R||S - use ecdsaConcat
             val sigResult = Signature.ecdsaConcat(sigBytes, curve)
             keyResult match
               case Right(pubKey) =>
@@ -167,6 +166,16 @@ class WycheproofEcdsaP1363Suite extends FunSuite:
     }
 
     assert(failed == 0, s"$failed Wycheproof P1363 vectors failed")
-    assert(passed > 0, "No vectors passed for P1363")
+    assert(passed > 0, s"No vectors passed for $resourcePath")
+  end loadAndTest
+
+  test("Wycheproof ECDSA P-256 SHA-256 P1363 (R||S) vectors"):
+    loadAndTest("/wycheproof/ecdsa_secp256r1_sha256_p1363_test.json")
+
+  test("Wycheproof ECDSA P-384 SHA-384 P1363 (R||S) vectors"):
+    loadAndTest("/wycheproof/ecdsa_secp384r1_sha384_p1363_test.json")
+
+  test("Wycheproof ECDSA P-521 SHA-512 P1363 (R||S) vectors"):
+    loadAndTest("/wycheproof/ecdsa_secp521r1_sha512_p1363_test.json")
 
 end WycheproofEcdsaP1363Suite

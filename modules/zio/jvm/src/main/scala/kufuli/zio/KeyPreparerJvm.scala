@@ -57,7 +57,7 @@ given KeyPreparer with
   extension (key: CryptoKey)
 
     def prepareSigning(algorithm: SignAlgorithm): IO[KufuliError, PreparedKey[Signing]] =
-      prepare(key, algorithm).map(PreparedKey.wrapKey[Signing])
+      ZIO.fromEither(SecurityChecks.validateSigningRole(key)).flatMap(_ => prepare(key, algorithm)).map(PreparedKey.wrapKey[Signing])
 
     def prepareVerifying(algorithm: SignAlgorithm): IO[KufuliError, PreparedKey[Verifying]] =
       prepare(key, algorithm).map(PreparedKey.wrapKey[Verifying])
