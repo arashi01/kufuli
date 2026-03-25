@@ -359,7 +359,7 @@ static int hmac_verify(int alg_id,
                        const unsigned char* data, size_t data_len,
                        const unsigned char* sig, size_t sig_len) {
     unsigned char computed[CC_SHA512_DIGEST_LENGTH]; /* large enough for any HMAC */
-    size_t computed_len = 0;
+    size_t computed_len = CC_SHA512_DIGEST_LENGTH;
 
     int rc = hmac_sign(alg_id, key, key_len, data, data_len,
                        computed, &computed_len);
