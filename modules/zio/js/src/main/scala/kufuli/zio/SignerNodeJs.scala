@@ -46,7 +46,7 @@ given Signer with
     def sign(data: Array[Byte]): IO[KufuliError, Signature] =
       PreparedKey.unwrapKey[Signing](key) match
         case nodeKey: NodePreparedKey =>
-          val alg = nodeKey.algorithm
+          val alg = nodeKey.signAlgorithm
           val dataArr = ByteConversions.toUint8Array(data)
 
           val rawEffect = alg.digestAlgorithm match

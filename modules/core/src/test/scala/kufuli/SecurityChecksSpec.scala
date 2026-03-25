@@ -87,6 +87,12 @@ class SecurityChecksSpec extends FunSuite:
   test("validateOkpKeyLength accepts 57-byte Ed448 key"):
     assert(SecurityChecks.validateOkpKeyLength(OkpCurve.Ed448, new Array[Byte](57)).isRight)
 
+  test("validateOkpKeyLength accepts 32-byte X25519 key"):
+    assert(SecurityChecks.validateOkpKeyLength(OkpCurve.X25519, new Array[Byte](32)).isRight)
+
+  test("validateOkpKeyLength rejects wrong length X25519 key"):
+    assert(SecurityChecks.validateOkpKeyLength(OkpCurve.X25519, new Array[Byte](16)).isLeft)
+
   // -- Phase 2: prePrepare --
 
   test("prePrepare accepts HMAC key with sufficient size"):

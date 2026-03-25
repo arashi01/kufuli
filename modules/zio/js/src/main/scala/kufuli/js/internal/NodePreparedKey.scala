@@ -21,7 +21,7 @@
 package kufuli.js.internal
 
 import kufuli.SignAlgorithm
-import kufuli.zio.PreparedKeyInternal
+import kufuli.zio.SigningKeyInternal
 
-/** Node.js-specific prepared key wrapping a `KeyObject` and its bound algorithm. */
-final private[kufuli] class NodePreparedKey(val keyObject: KeyObject, val algorithm: SignAlgorithm) extends PreparedKeyInternal
+/** Node.js-specific prepared signing key wrapping a `KeyObject` and its bound algorithm. */
+final private[kufuli] class NodePreparedKey(val keyObject: KeyObject, val signAlgorithm: SignAlgorithm) extends SigningKeyInternal

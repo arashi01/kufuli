@@ -73,6 +73,10 @@ private[kufuli] object DerCodec:
   private val OidEd448: Array[Byte] =
     Array[Byte](0x06, 0x03, 0x2b, 0x65, 0x71)
 
+  /** OID 1.3.101.110 (X25519) per RFC 8410 (August 2018) */
+  private val OidX25519: Array[Byte] =
+    Array[Byte](0x06, 0x03, 0x2b, 0x65, 0x6e)
+
   // -- Public API --
 
   /** Encodes a [[kufuli.CryptoKey CryptoKey]] to bytes for the C layer. */
@@ -184,11 +188,12 @@ private[kufuli] object DerCodec:
     val ecPrivKey = derSequence(derSmallInt(1), derOctetString(d), contextual1)
     derSequence(derSmallInt(0), algorithmId, derOctetString(ecPrivKey))
 
-  // -- OKP (EdDSA) --
+  // -- OKP (EdDSA / X25519) --
 
   private def okpCurveOid(curve: OkpCurve): Array[Byte] = curve match
     case OkpCurve.Ed25519 => OidEd25519
     case OkpCurve.Ed448   => OidEd448
+    case OkpCurve.X25519  => OidX25519
 
   /** SubjectPublicKeyInfo for OKP public key. */
   private def encodeOkpPublic(curve: OkpCurve, x: Array[Byte]): Array[Byte] =

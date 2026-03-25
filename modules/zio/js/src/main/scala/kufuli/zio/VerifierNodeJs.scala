@@ -48,7 +48,7 @@ given Verifier with
       val sigBytes = Signature.unwrapRaw(signature)
       PreparedKey.unwrapKey[Verifying](key) match
         case nodeKey: NodePreparedKey =>
-          val alg = nodeKey.algorithm
+          val alg = nodeKey.signAlgorithm
           ZIO.fromEither(SecurityChecks.preVerify(alg, sigBytes)).flatMap { _ =>
             val dataArr = ByteConversions.toUint8Array(data)
             val sigArr = ByteConversions.toUint8Array(sigBytes)

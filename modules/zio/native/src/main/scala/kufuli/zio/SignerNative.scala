@@ -81,7 +81,7 @@ private def nativeSign(nk: NativePreparedKey, data: Array[Byte]): IO[KufuliError
     .flatMap(ZIO.fromEither(_))
     .flatMap { rawSig =>
       // ECDSA: OpenSSL returns DER-encoded signatures, transcode to R||S
-      val normalised = nk.algorithm.ecCurve match
+      val normalised = nk.signAlgorithm.ecCurve match
         case Some(curve) => ZIO.fromEither(EcdsaCodec.derToConcat(rawSig, curve.componentLength))
         case None        => ZIO.succeed(rawSig)
       normalised.map(Signature.wrapRaw)

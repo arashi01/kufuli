@@ -71,6 +71,7 @@ object SignAlgorithm:
       curve match
         case OkpCurve.Ed25519 => Right(Ed25519)
         case OkpCurve.Ed448   => Right(Ed448)
+        case OkpCurve.X25519  => Left(KufuliError.UnsupportedAlgorithm("X25519 is a key agreement curve, not a signing curve"))
     case other => fromJwsName(other)
 
   extension (alg: SignAlgorithm)

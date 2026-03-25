@@ -24,20 +24,25 @@ import boilerplate.OpaqueType
 
 import kufuli.KeyRole
 import kufuli.KufuliError
-import kufuli.SignAlgorithm
 
 /** Platform-specific prepared key representation.
   *
-  * Implementations provide the algorithm and a platform-native key handle (JCA Key, Node.js
-  * KeyObject, Web Crypto key, or DER bytes).
+  * This base trait carries no algorithm information. Operation-specific subtraits
+  * ([[SigningKeyInternal]], and future encryption/key-agreement variants) add the appropriate
+  * algorithm type. Platform backends extend the relevant subtrait.
   */
-private[kufuli] trait PreparedKeyInternal:
-  def algorithm: SignAlgorithm
+private[kufuli] trait PreparedKeyInternal
+
+/** Subtrait for prepared keys bound to a signing algorithm. */
+private[kufuli] trait SigningKeyInternal extends PreparedKeyInternal:
+  def signAlgorithm: kufuli.SignAlgorithm
 
 /** Opaque wrapper around a platform-specific prepared key, tagged with a phantom
   * [[kufuli.KeyRole KeyRole]] marker.
   *
-  * Instances are constructed via [[KeyPreparer]] and consumed by [[Signer]] and [[Verifier]].
+  * Instances are constructed via [[KeyPreparer]] and consumed by [[Signer]] and [[Verifier]]. No
+  * public API shall return `PreparedKey[SymmetricRole]` - preparers always return specific role
+  * types (`PreparedKey[Signing]`, `PreparedKey[Verifying]`, etc.).
   *
   * @see [[PreparedKey$ PreparedKey]] companion for factory operations
   */
@@ -56,9 +61,6 @@ object PreparedKey extends OpaqueType[PreparedKey[KeyRole]]:
   inline def unwrap(value: PreparedKey[KeyRole]): PreparedKeyInternal = value
   inline def apply(inline value: PreparedKeyInternal): PreparedKey[KeyRole] = fromUnsafe(value)
   protected inline def validate(value: PreparedKeyInternal): Option[KufuliError] = None
-
-  /** Returns the signing algorithm bound at preparation time. */
-  extension [R <: KeyRole](key: PreparedKey[R]) def algorithm: SignAlgorithm = unwrapKey(key).algorithm
 
   private[kufuli] def wrapKey[R <: KeyRole](internal: PreparedKeyInternal): PreparedKey[R] = internal
   private[kufuli] def unwrapKey[R <: KeyRole](key: PreparedKey[R]): PreparedKeyInternal = key
