@@ -35,6 +35,7 @@ import _root_.kufuli.js.internal.SignKeyOptions
 
 import kufuli.KufuliError
 import kufuli.SignAlgorithm
+import kufuli.Signature
 import kufuli.Signing
 
 /** Node.js implementation of [[Signer]]. */
@@ -42,13 +43,13 @@ given Signer with
 
   extension (key: PreparedKey[Signing])
 
-    def sign(data: Array[Byte]): IO[KufuliError, Array[Byte]] =
+    def sign(data: Array[Byte]): IO[KufuliError, Signature] =
       PreparedKey.unwrapKey[Signing](key) match
         case nodeKey: NodePreparedKey =>
           val alg = nodeKey.algorithm
           val dataArr = ByteConversions.toUint8Array(data)
 
-          alg.digestAlgorithm match
+          val rawEffect = alg.digestAlgorithm match
             case Some(digest) =>
               val digestName = digest.nodeName
               if alg.isHmac then hmacSign(nodeKey.keyObject, dataArr, digestName)
@@ -57,6 +58,7 @@ given Signer with
               else rsaPkcs1Sign(nodeKey.keyObject, dataArr, digestName)
             case None =>
               eddsaSign(nodeKey.keyObject, dataArr)
+          rawEffect.map(Signature.wrapRaw)
         case _ => ZIO.fail(KufuliError.SignatureFailure("Unexpected prepared key type"))
   end extension
 end given

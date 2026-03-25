@@ -29,6 +29,7 @@ import _root_.kufuli.browser.internal.WebAlgorithm.*
 import _root_.kufuli.browser.internal.WebCryptoGlobal
 import _root_.kufuli.js.internal.ByteConversions
 
+import kufuli.Digest
 import kufuli.DigestAlgorithm
 import kufuli.KufuliError
 import kufuli.zio.Digester
@@ -38,8 +39,8 @@ given Digester with
 
   extension (data: Array[Byte])
 
-    def digest(algorithm: DigestAlgorithm): IO[KufuliError, Array[Byte]] =
+    def digest(algorithm: DigestAlgorithm): IO[KufuliError, Digest] =
       ZIO
         .fromPromiseJS(WebCryptoGlobal.subtle.digest(algorithm.webCryptoName, ByteConversions.toUint8Array(data)))
-        .map(ab => ByteConversions.toByteArray(new Uint8Array(ab)))
+        .map(ab => Digest.wrap(ByteConversions.toByteArray(new Uint8Array(ab))))
         .mapError(_ => KufuliError.DigestFailure("Web Crypto digest computation failed"))

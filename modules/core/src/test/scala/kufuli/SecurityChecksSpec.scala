@@ -60,7 +60,7 @@ class SecurityChecksSpec extends FunSuite:
 
   // -- Phase 1: Point on curve --
 
-  // NIST P-256 generator point (FIPS 186-4, Section D.1.2.3)
+  // NIST P-256 generator point (FIPS 186-5 (February 2023), Section D.1.2.3)
   private val p256Gx: Array[Byte] =
     BigInteger("6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296", 16).toByteArray.dropWhile(_ == 0)
 

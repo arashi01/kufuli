@@ -21,6 +21,8 @@ inThisBuild(
 
 val libraries = new {
   val boilerplate = Def.setting("io.github.arashi01" %%% "boilerplate" % "0.6.0")
+  val `jsoniter-scala-core` = Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % "2.38.9")
+  val `jsoniter-scala-macros` = Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-macros" % "2.38.9")
   val munit = Def.setting("org.scalameta" %%% "munit" % "1.2.4")
   val `munit-scalacheck` = Def.setting("org.scalameta" %%% "munit-scalacheck" % "1.2.0")
   val `munit-zio` = Def.setting("com.github.poslegm" %%% "munit-zio" % "0.4.0")
@@ -65,6 +67,7 @@ val `kufuli-zio` =
     .settings(publishSettings)
     .settings(description := "ZIO typeclass traits and platform-specific crypto backends")
     .nativeSettings(nativeSettings)
+    .nativeSettings(nativeCryptoLinkSettings)
     .jsSettings(jsSettings)
     .jsSettings(Compile / doc / sources := Nil) // Scala 3 doc compiler cannot resolve overloaded @js.native methods in NodeCrypto
     .jsConfigure(_.dependsOn(`kufuli-js-shared`))
@@ -113,8 +116,15 @@ val `kufuli-zio-tests` =
     .settings(publish / skip := true)
     .settings(description := "ZIO test instantiation for kufuli testkit")
     .nativeSettings(nativeSettings)
+    .nativeSettings(nativeCryptoLinkSettings)
     .jsSettings(jsSettings)
     .settings(libraryDependencies += libraries.zio.value)
+    .jvmSettings(
+      libraryDependencies ++= List(
+        libraries.`jsoniter-scala-core`.value % Test,
+        libraries.`jsoniter-scala-macros`.value % Test
+      )
+    )
 
 val `kufuli-jvm` =
   project
@@ -167,6 +177,21 @@ def jsSettings = List(
 
 def nativeSettings = List(
   dependencyOverrides += "org.scala-native" %%% "test-interface" % buildinfo.BuildInfo.scalaNativeVersion % Test
+)
+
+// Platform crypto library linking - only for modules containing or depending on C FFI code
+def nativeCryptoLinkSettings = List(
+  nativeConfig ~= { c =>
+    val os = System.getProperty("os.name").toLowerCase
+    if (os.contains("linux"))
+      c.withLinkingOptions(c.linkingOptions ++ Seq("-lssl", "-lcrypto"))
+    else if (os.contains("mac") || os.contains("darwin"))
+      c.withLinkingOptions(c.linkingOptions ++ Seq("-framework", "Security", "-framework", "CoreFoundation"))
+    else if (os.contains("win"))
+      c.withLinkingOptions(c.linkingOptions ++ Seq("-lbcrypt"))
+    else
+      c
+  }
 )
 
 def baseCompilerOptions = List(

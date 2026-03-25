@@ -1,0 +1,8 @@
+The test vector files in this directory are from Project Wycheproof
+(https://github.com/google/wycheproof), originally developed by Google LLC
+and now maintained by C2SP (https://github.com/C2SP).
+
+These files are licensed under the Apache License, Version 2.0.
+You may obtain a copy of the licence at:
+
+    http://www.apache.org/licenses/LICENSE-2.0

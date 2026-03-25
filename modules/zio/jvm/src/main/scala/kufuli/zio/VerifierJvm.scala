@@ -36,6 +36,7 @@ import kufuli.EcdsaCodec
 import kufuli.KufuliError
 import kufuli.SecurityChecks
 import kufuli.SignAlgorithm
+import kufuli.Signature
 import kufuli.Verifying
 
 /** JVM (JCA) implementation of [[Verifier]]. */
@@ -43,27 +44,29 @@ given Verifier with
 
   extension (key: PreparedKey[Verifying])
 
-    def verify(data: Array[Byte], signature: Array[Byte]): IO[KufuliError, Unit] =
+    def verify(data: Array[Byte], signature: Signature): IO[KufuliError, Unit] =
+      val sigBytes = Signature.unwrapRaw(signature)
       // Pattern match narrows PreparedKeyInternal -> JvmPreparedKey, Key -> SecretKey/PublicKey
       PreparedKey.unwrapKey[Verifying](key) match
         case jvmKey: JvmPreparedKey =>
           val alg = jvmKey.algorithm
-          ZIO.fromEither(SecurityChecks.preVerify(alg, signature)).flatMap { _ =>
+          ZIO.fromEither(SecurityChecks.preVerify(alg, sigBytes)).flatMap { _ =>
             (alg, jvmKey.jcaKey) match
               case (_: SignAlgorithm.HmacSha256.type | _: SignAlgorithm.HmacSha384.type | _: SignAlgorithm.HmacSha512.type,
                     sk: SecretKey
                   ) =>
-                hmacVerify(sk, data, signature, alg)
+                hmacVerify(sk, data, sigBytes, alg)
               case (_, pk: PublicKey) =>
                 alg.ecCurve match
                   case Some(_) =>
-                    ZIO.fromEither(EcdsaCodec.concatToDer(signature)).flatMap { derSig =>
+                    ZIO.fromEither(EcdsaCodec.concatToDer(sigBytes)).flatMap { derSig =>
                       jcaVerify(pk, data, derSig, alg)
                     }
-                  case None => jcaVerify(pk, data, signature, alg)
+                  case None => jcaVerify(pk, data, sigBytes, alg)
               case _ => ZIO.fail(KufuliError.VerificationFailure("Unexpected JCA key type for verification"))
           }
         case _ => ZIO.fail(KufuliError.VerificationFailure("Unexpected prepared key type"))
+      end match
   end extension
 end given
 

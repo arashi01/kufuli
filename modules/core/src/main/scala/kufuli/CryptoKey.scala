@@ -29,6 +29,13 @@ package kufuli
   * material. `CanEqual` is intentionally omitted: the `==` operator would use reference equality
   * for array fields, producing silently wrong results. Under strict equality this is a compile
   * error, forcing use of [[CryptoKey$.contentEquals]] for value-based comparison.
+  *
+  * '''Sensitive memory threat model:''' Key material is held in JVM-managed `Array[Byte]` (on JVM)
+  * or GC-managed memory (on JS/Native). It is NOT zeroed after use and may persist in memory until
+  * garbage-collected. On Native, zone-allocated copies used for C FFI calls are freed when the
+  * `Zone` exits, but are also not explicitly zeroed. This is a known limitation: JVM and JS
+  * runtimes do not provide reliable memory zeroing guarantees. Applications handling key material
+  * with stricter requirements should manage key lifecycle at a higher layer.
   */
 enum CryptoKey:
   private[kufuli] case Symmetric(bytes: Array[Byte])
@@ -81,13 +88,19 @@ object CryptoKey:
     SecurityChecks.validatePointOnCurve(curve, x, y).map(_ => EcPublic(curve, x.clone(), y.clone()))
 
   def ecPrivate(curve: EcCurve, x: Array[Byte], y: Array[Byte], d: Array[Byte]): Either[KufuliError, CryptoKey] =
-    SecurityChecks.validatePointOnCurve(curve, x, y).map(_ => EcPrivate(curve, x.clone(), y.clone(), d.clone()))
+    for
+      _ <- SecurityChecks.validatePointOnCurve(curve, x, y)
+      _ <- SecurityChecks.validateEcPrivateScalar(curve, d)
+    yield EcPrivate(curve, x.clone(), y.clone(), d.clone())
 
   def okpPublic(curve: OkpCurve, x: Array[Byte]): Either[KufuliError, CryptoKey] =
     SecurityChecks.validateOkpKeyLength(curve, x).map(_ => OkpPublic(curve, x.clone()))
 
   def okpPrivate(curve: OkpCurve, x: Array[Byte], d: Array[Byte]): Either[KufuliError, CryptoKey] =
-    SecurityChecks.validateOkpKeyLength(curve, x).map(_ => OkpPrivate(curve, x.clone(), d.clone()))
+    for
+      _ <- SecurityChecks.validateOkpKeyLength(curve, x)
+      _ <- SecurityChecks.validateOkpPrivateKeyLength(curve, d)
+    yield OkpPrivate(curve, x.clone(), d.clone())
 
   /** Value-based equality for two crypto keys. All byte array fields are compared using
     * constant-time comparison to prevent timing side-channel leakage of key material.

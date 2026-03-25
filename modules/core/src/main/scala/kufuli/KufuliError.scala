@@ -24,7 +24,7 @@ import scala.util.control.NoStackTrace
 
 /** Error ADT for all kufuli cryptographic operations. */
 enum KufuliError extends Throwable with NoStackTrace derives CanEqual:
-  case UnsupportedAlgorithm(algorithm: String)
+  case UnsupportedAlgorithm(message: String)
   case InvalidKey(message: String)
   case InvalidSignature(message: String)
   case SignatureFailure(message: String)
@@ -32,10 +32,10 @@ enum KufuliError extends Throwable with NoStackTrace derives CanEqual:
   case DigestFailure(message: String)
 
   override def getMessage: String = this match
-    case UnsupportedAlgorithm(algorithm) => s"Unsupported algorithm: $algorithm"
-    case InvalidKey(message)             => s"Invalid key: $message"
-    case InvalidSignature(message)       => s"Invalid signature: $message"
-    case SignatureFailure(message)       => s"Signature failure: $message"
-    case VerificationFailure(message)    => s"Verification failure: $message"
-    case DigestFailure(message)          => s"Digest failure: $message"
+    case UnsupportedAlgorithm(message) => s"Unsupported algorithm: $message"
+    case InvalidKey(message)           => s"Invalid key: $message"
+    case InvalidSignature(message)     => s"Invalid signature: $message"
+    case SignatureFailure(message)     => s"Signature failure: $message"
+    case VerificationFailure(message)  => s"Verification failure: $message"
+    case DigestFailure(message)        => s"Digest failure: $message"
 end KufuliError

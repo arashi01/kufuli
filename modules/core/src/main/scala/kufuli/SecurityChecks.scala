@@ -24,21 +24,23 @@ import java.math.BigInteger
 
 /** Three-phase security validation for cryptographic operations.
   *
-  *   - Phase 1: Key construction (point-on-curve, RSA key size, CRT, OKP key length)
+  *   - Phase 1: Key construction (point-on-curve, RSA key size per NIST SP 800-131A Rev. 2 (March
+  *     2019), CRT, EC scalar, OKP key length)
   *   - Phase 2: Key preparation (algorithm-key compatibility, HMAC minimum key size per RFC 7518
-  *     ss3.2)
+  *     (May 2015) ss3.2)
   *   - Phase 3: Pre-verification (ECDSA signature validation per CVE-2022-21449, EdDSA signature
-  *     length)
+  *     length per RFC 8032 (January 2017))
   */
 private[kufuli] object SecurityChecks:
 
+  /** Minimum RSA key size per NIST SP 800-131A Rev. 2 (March 2019) ss2. */
   private val MinRsaKeyBits = 2048
 
   // ---------------------------------------------------------------------------
   // Phase 1: Key construction validation
   // ---------------------------------------------------------------------------
 
-  /** Validates that an RSA modulus is at least 2048 bits. */
+  /** Validates that an RSA modulus is at least 2048 bits per NIST SP 800-131A Rev. 2 (March 2019). */
   private[kufuli] def validateRsaKeySize(modulus: Array[Byte]): Either[KufuliError, Unit] =
     val bits = BigInteger(1, modulus).bitLength()
     Either.cond(
@@ -65,6 +67,10 @@ private[kufuli] object SecurityChecks:
 
   /** Validates that (x, y) lies on the given elliptic curve using pure BigInteger arithmetic.
     * Verifies coordinates are in range [0, p-1] and satisfy y^2 = x^3 + ax + b (mod p).
+    *
+    * Note: uses `BigInteger.modPow` which is not constant-time. This is acceptable because this
+    * method is called during key construction (not a repeated operation on secret data), and the
+    * public key coordinates are not secret.
     */
   private[kufuli] def validatePointOnCurve(
     curve: EcCurve,
@@ -102,7 +108,21 @@ private[kufuli] object SecurityChecks:
     end for
   end validatePointOnCurve
 
-  /** Validates that an OKP public key has the correct byte length for its curve. */
+  /** Validates that an EC private key scalar d is in [1, n-1] per SEC 1 v2 (May 2009) ss3.2.1. */
+  private[kufuli] def validateEcPrivateScalar(
+    curve: EcCurve,
+    d: Array[Byte]
+  ): Either[KufuliError, Unit] =
+    val dInt = BigInteger(1, d)
+    Either.cond(
+      dInt.signum() > 0 && dInt.compareTo(curve.order) < 0,
+      (),
+      KufuliError.InvalidKey("EC private key scalar d is not in [1, n-1]")
+    )
+
+  /** Validates that an OKP public key has the correct byte length for its curve per RFC 8032
+    * (January 2017).
+    */
   private[kufuli] def validateOkpKeyLength(
     curve: OkpCurve,
     x: Array[Byte]
@@ -113,12 +133,25 @@ private[kufuli] object SecurityChecks:
       KufuliError.InvalidKey(s"OKP key length must be ${curve.keyLength} bytes for ${curve.jwkName}, got ${x.length}")
     )
 
+  /** Validates that an OKP private key seed has the correct byte length for its curve per RFC 8032
+    * (January 2017). Ed25519 seeds are 32 bytes; Ed448 seeds are 57 bytes.
+    */
+  private[kufuli] def validateOkpPrivateKeyLength(
+    curve: OkpCurve,
+    d: Array[Byte]
+  ): Either[KufuliError, Unit] =
+    Either.cond(
+      d.length == curve.keyLength,
+      (),
+      KufuliError.InvalidKey(s"OKP private key seed must be ${curve.keyLength} bytes for ${curve.jwkName}, got ${d.length}")
+    )
+
   // ---------------------------------------------------------------------------
   // Phase 2: Key-algorithm compatibility (called from KeyPreparer implementations)
   // ---------------------------------------------------------------------------
 
   /** Validates that a key is compatible with a signing algorithm, including HMAC minimum key size
-    * per RFC 7518 ss3.2.
+    * per RFC 7518 (May 2015) ss3.2.
     */
   def prePrepare(key: CryptoKey, alg: SignAlgorithm): Either[KufuliError, Unit] =
     import CryptoKey.*

@@ -34,6 +34,7 @@ import boilerplate.nullable.*
 import kufuli.EcdsaCodec
 import kufuli.KufuliError
 import kufuli.SignAlgorithm
+import kufuli.Signature
 import kufuli.Signing
 
 /** JVM (JCA) implementation of [[Signer]]. */
@@ -41,22 +42,25 @@ given Signer with
 
   extension (key: PreparedKey[Signing])
 
-    def sign(data: Array[Byte]): IO[KufuliError, Array[Byte]] =
+    def sign(data: Array[Byte]): IO[KufuliError, Signature] =
       // Pattern match narrows PreparedKeyInternal -> JvmPreparedKey, Key -> SecretKey/PrivateKey
       PreparedKey.unwrapKey[Signing](key) match
         case jvmKey: JvmPreparedKey =>
           val alg = jvmKey.algorithm
           (alg, jvmKey.jcaKey) match
             case (_: SignAlgorithm.HmacSha256.type | _: SignAlgorithm.HmacSha384.type | _: SignAlgorithm.HmacSha512.type, sk: SecretKey) =>
-              hmacSign(sk, data, alg)
+              hmacSign(sk, data, alg).map(Signature.wrapRaw)
             case (_, pk: PrivateKey) =>
               alg.ecCurve match
                 case Some(curve) =>
-                  jcaSign(pk, data, alg).flatMap { derSig =>
-                    ZIO.fromEither(EcdsaCodec.derToConcat(derSig, curve.componentLength))
-                  }
-                case None => jcaSign(pk, data, alg)
+                  jcaSign(pk, data, alg)
+                    .flatMap { derSig =>
+                      ZIO.fromEither(EcdsaCodec.derToConcat(derSig, curve.componentLength))
+                    }
+                    .map(Signature.wrapRaw)
+                case None => jcaSign(pk, data, alg).map(Signature.wrapRaw)
             case _ => ZIO.fail(KufuliError.SignatureFailure("Unexpected JCA key type for signing"))
+          end match
         case _ => ZIO.fail(KufuliError.SignatureFailure("Unexpected prepared key type"))
   end extension
 end given

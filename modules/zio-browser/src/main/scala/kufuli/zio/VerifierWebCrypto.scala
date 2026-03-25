@@ -30,6 +30,7 @@ import _root_.kufuli.js.internal.ByteConversions
 
 import kufuli.KufuliError
 import kufuli.SecurityChecks
+import kufuli.Signature
 import kufuli.Verifying
 import kufuli.zio.PreparedKey
 import kufuli.zio.Verifier
@@ -39,13 +40,14 @@ given Verifier with
 
   extension (key: PreparedKey[Verifying])
 
-    def verify(data: Array[Byte], signature: Array[Byte]): IO[KufuliError, Unit] =
+    def verify(data: Array[Byte], signature: Signature): IO[KufuliError, Unit] =
+      val sigBytes = Signature.unwrapRaw(signature)
       PreparedKey.unwrapKey[Verifying](key) match
         case webKey: WebPreparedKey =>
           val alg = webKey.algorithm
-          ZIO.fromEither(SecurityChecks.preVerify(alg, signature)).flatMap { _ =>
+          ZIO.fromEither(SecurityChecks.preVerify(alg, sigBytes)).flatMap { _ =>
             val dataArr = ByteConversions.toUint8Array(data)
-            val sigArr = ByteConversions.toUint8Array(signature)
+            val sigArr = ByteConversions.toUint8Array(sigBytes)
             ZIO
               .fromPromiseJS(WebCryptoGlobal.subtle.verify(alg.signParams, webKey.cryptoKey, sigArr, dataArr))
               .mapError(_ => KufuliError.InvalidSignature("Signature verification failed"))
@@ -54,5 +56,6 @@ given Verifier with
               }
           }
         case _ => ZIO.fail(KufuliError.VerificationFailure("Unexpected prepared key type"))
+      end match
   end extension
 end given

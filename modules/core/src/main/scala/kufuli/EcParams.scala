@@ -22,8 +22,14 @@ package kufuli
 
 import java.math.BigInteger
 
-/** ECDSA signature pre-validation (CVE-2022-21449 mitigations). Must be called before passing a
-  * signature to any platform signature engine.
+/** ECDSA signature pre-validation per NIST FIPS 186-5 (February 2023) ss6.4.2 and CVE-2022-21449
+  * mitigations. Must be called before passing a signature to any platform signature engine.
+  *
+  * '''Malleability stance:''' This validator enforces `r, s in [1, n-1]` but does NOT enforce low-S
+  * normalisation (`s <= n/2`). Both `s` and `n - s` produce valid ECDSA signatures for the same
+  * message, which is known as signature malleability. JWS (RFC 7515 (May 2015)) and the NIST DSS
+  * (FIPS 186-5) accept both forms. Applications that require canonical signatures (e.g. Bitcoin,
+  * Ethereum) must enforce low-S at a higher layer.
   */
 private[kufuli] object EcParams:
 
@@ -55,7 +61,7 @@ private[kufuli] object EcParams:
       // Step 5: reject R >= N or S >= N
       _ <- Either.cond(r.compareTo(n) < 0 && s.compareTo(n) < 0, (), KufuliError.InvalidSignature("R or S exceeds curve order"))
 
-      // Step 6: reject R mod N = 0 or S mod N = 0 (redundant given steps 4+5, but spec-mandated)
+      // Step 6: reject R mod N = 0 or S mod N = 0 (redundant given steps 4+5, included for defence-in-depth)
       _ <- Either.cond(
              r.mod(n).signum() > 0 && s.mod(n).signum() > 0,
              (),

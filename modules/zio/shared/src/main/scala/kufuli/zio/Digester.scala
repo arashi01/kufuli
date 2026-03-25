@@ -22,6 +22,7 @@ package kufuli.zio
 
 import zio.IO
 
+import kufuli.Digest
 import kufuli.DigestAlgorithm
 import kufuli.KufuliError
 
@@ -30,10 +31,10 @@ import kufuli.KufuliError
   * @see [[Digester$ Digester]] companion for static alias
   */
 trait Digester:
-  extension (data: Array[Byte]) def digest(algorithm: DigestAlgorithm): IO[KufuliError, Array[Byte]]
+  extension (data: Array[Byte]) def digest(algorithm: DigestAlgorithm): IO[KufuliError, Digest]
 
 /** Static alias for [[Digester]] extension method. */
 object Digester:
 
-  def digest(data: Array[Byte], algorithm: DigestAlgorithm)(using d: Digester): IO[KufuliError, Array[Byte]] =
+  def digest(data: Array[Byte], algorithm: DigestAlgorithm)(using d: Digester): IO[KufuliError, Digest] =
     d.digest(data)(algorithm)

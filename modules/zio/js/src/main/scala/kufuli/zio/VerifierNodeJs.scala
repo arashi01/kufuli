@@ -36,6 +36,7 @@ import _root_.kufuli.js.internal.VerifyKeyOptions
 import kufuli.KufuliError
 import kufuli.SecurityChecks
 import kufuli.SignAlgorithm
+import kufuli.Signature
 import kufuli.Verifying
 
 /** Node.js implementation of [[Verifier]]. */
@@ -43,13 +44,14 @@ given Verifier with
 
   extension (key: PreparedKey[Verifying])
 
-    def verify(data: Array[Byte], signature: Array[Byte]): IO[KufuliError, Unit] =
+    def verify(data: Array[Byte], signature: Signature): IO[KufuliError, Unit] =
+      val sigBytes = Signature.unwrapRaw(signature)
       PreparedKey.unwrapKey[Verifying](key) match
         case nodeKey: NodePreparedKey =>
           val alg = nodeKey.algorithm
-          ZIO.fromEither(SecurityChecks.preVerify(alg, signature)).flatMap { _ =>
+          ZIO.fromEither(SecurityChecks.preVerify(alg, sigBytes)).flatMap { _ =>
             val dataArr = ByteConversions.toUint8Array(data)
-            val sigArr = ByteConversions.toUint8Array(signature)
+            val sigArr = ByteConversions.toUint8Array(sigBytes)
 
             alg.digestAlgorithm match
               case Some(digest) =>
@@ -62,6 +64,7 @@ given Verifier with
                 eddsaVerify(nodeKey.keyObject, dataArr, sigArr)
           }
         case _ => ZIO.fail(KufuliError.VerificationFailure("Unexpected prepared key type"))
+      end match
   end extension
 end given
 

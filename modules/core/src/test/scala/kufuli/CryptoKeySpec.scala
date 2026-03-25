@@ -77,7 +77,7 @@ class CryptoKeySpec extends FunSuite:
 
   // -- EC --
 
-  // NIST P-256 generator point (FIPS 186-4)
+  // NIST P-256 generator point (FIPS 186-5 (February 2023))
   private val p256Gx: Array[Byte] =
     BigInteger("6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296", 16).toByteArray.dropWhile(_ == 0)
 
@@ -95,6 +95,14 @@ class CryptoKeySpec extends FunSuite:
     d(31) = 1
     assert(CryptoKey.ecPrivate(EcCurve.P256, p256Gx, p256Gy, d).isRight)
 
+  test("ecPrivate rejects d = 0"):
+    val d = new Array[Byte](32)
+    assert(CryptoKey.ecPrivate(EcCurve.P256, p256Gx, p256Gy, d).isLeft)
+
+  test("ecPrivate rejects d >= curve order"):
+    val d = Array.fill[Byte](32)(0xff.toByte)
+    assert(CryptoKey.ecPrivate(EcCurve.P256, p256Gx, p256Gy, d).isLeft)
+
   // -- OKP --
 
   test("okpPublic accepts 32-byte Ed25519 key"):
@@ -105,6 +113,12 @@ class CryptoKeySpec extends FunSuite:
 
   test("okpPrivate accepts valid Ed25519 key"):
     assert(CryptoKey.okpPrivate(OkpCurve.Ed25519, new Array[Byte](32), new Array[Byte](32)).isRight)
+
+  test("okpPrivate rejects wrong-length d for Ed25519"):
+    assert(CryptoKey.okpPrivate(OkpCurve.Ed25519, new Array[Byte](32), new Array[Byte](16)).isLeft)
+
+  test("okpPrivate rejects wrong-length d for Ed448"):
+    assert(CryptoKey.okpPrivate(OkpCurve.Ed448, new Array[Byte](57), new Array[Byte](32)).isLeft)
 
   test("okpPublic accepts 57-byte Ed448 key"):
     assert(CryptoKey.okpPublic(OkpCurve.Ed448, new Array[Byte](57)).isRight)
@@ -132,7 +146,7 @@ class CryptoKeySpec extends FunSuite:
     assert(CryptoKey.contentEquals(k1, k2))
 
   test("contentEquals returns false for EC keys on different curves"):
-    // P-384 generator point (FIPS 186-4)
+    // P-384 generator point (FIPS 186-5 (February 2023))
     val p384Gx =
       BigInteger(
         "AA87CA22BE8B05378EB1C71EF320AD746E1D3B628BA79B9859F741E082542A385502F25DBF55296C3A545E3872760AB7",

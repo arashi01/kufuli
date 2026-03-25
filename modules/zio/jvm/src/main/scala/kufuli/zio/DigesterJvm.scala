@@ -28,6 +28,7 @@ import zio.ZIO
 import _root_.kufuli.jvm.internal.JcaAlgorithm.*
 import boilerplate.nullable.*
 
+import kufuli.Digest
 import kufuli.DigestAlgorithm
 import kufuli.KufuliError
 
@@ -36,9 +37,9 @@ given Digester with
 
   extension (data: Array[Byte])
 
-    def digest(algorithm: DigestAlgorithm): IO[KufuliError, Array[Byte]] =
+    def digest(algorithm: DigestAlgorithm): IO[KufuliError, Digest] =
       ZIO
         .attempt {
-          MessageDigest.getInstance(algorithm.jcaName).unsafe.digest(data).unsafe
+          Digest.wrap(MessageDigest.getInstance(algorithm.jcaName).unsafe.digest(data).unsafe)
         }
         .mapError(_ => KufuliError.DigestFailure("JCA digest computation failed"))

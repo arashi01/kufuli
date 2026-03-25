@@ -18,7 +18,7 @@ concurrency:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  JDK_RELEASE: 17
+  JDK_RELEASE: 21
   JDK_CURRENT: 25
   NODE_LTS: 22
   SBT_OPTS: >-
@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [17, 21, 25]
+        java: [21, 25]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -220,7 +220,7 @@ jobs:
       - static_analysis
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
@@ -264,7 +264,7 @@ jobs:
       - static_analysis
     if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout

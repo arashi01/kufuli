@@ -23,8 +23,18 @@ package kufuli
 import scala.util.boundary
 import scala.util.boundary.break
 
-/** ECDSA DER <-> R||S transcoding. Converts between ASN.1 DER-encoded ECDSA signatures and the
-  * fixed-length R||S concatenation format used by JWS (RFC 7515).
+/** ECDSA DER <-> R||S transcoding. Converts between ASN.1 DER-encoded ECDSA signatures (SEC 1 v2
+  * (May 2009) C.8) and the fixed-length R||S concatenation format used by JWS (RFC 7515 (May
+  * 2015)).
+  *
+  * '''DER strictness:''' The parser enforces strict DER (ITU-T X.690) encoding. It rejects:
+  *   - Truncated input, wrong tags, length mismatches
+  *   - Indefinite-length BER encoding (0x80)
+  *   - Non-minimal SEQUENCE length (long form where short form suffices)
+  *   - Non-minimal INTEGER encoding (unnecessary leading zero bytes)
+  *   - Negative INTEGERs (high bit set without leading zero)
+  *   - Zero-length INTEGERs
+  *   - Length forms beyond 0x81 (values > 255 are unreachable for ECDSA signatures)
   */
 private[kufuli] object EcdsaCodec:
 
@@ -40,46 +50,66 @@ private[kufuli] object EcdsaCodec:
     */
   def derToConcat(der: Array[Byte], componentLength: Int): Either[KufuliError, Array[Byte]] =
     boundary:
-      if der.length < 8 || der(0) != SequenceTag then break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
+      val err = KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")
+      if der.length < 8 || der(0) != SequenceTag then break(Left(err))
 
-      // Determine offset past the SEQUENCE length encoding
+      // Determine offset past the SEQUENCE length encoding (strict DER: minimal length form)
+      val seqLenByte = der(1) & 0xff
       val offset =
-        if (der(1) & 0xff) < 0x80 then 2
-        else if der(1) == LongFormMarker then 3
-        else break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
+        if seqLenByte < 0x80 then 2
+        else if der(1) == LongFormMarker then
+          // Long form 0x81: value must be >= 128 (otherwise short form is required by DER)
+          val longLen = der(2) & 0xff
+          if longLen < 128 then break(Left(err))
+          3
+        else break(Left(err))
 
       // Validate SEQUENCE structure
       val seqLen = der(offset - 1) & 0xff
-      if seqLen != der.length - offset then break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
-      if der(offset) != IntegerTag then break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
+      if seqLen != der.length - offset then break(Left(err))
+      if der(offset) != IntegerTag then break(Left(err))
 
       // Extract R
       val rLen = der(offset + 1) & 0xff
-      if offset + 2 + rLen >= der.length then break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
-      if der(offset + 2 + rLen) != IntegerTag then break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
+      if rLen == 0 then break(Left(err))
+      // Need at least: R content (rLen) + INTEGER tag (1) + S length (1) = rLen + 2 more bytes
+      if offset + 2 + rLen + 2 > der.length then break(Left(err))
+
+      // Strict DER INTEGER validation for R:
+      // - Reject non-minimal encoding: leading 0x00 only allowed if next byte has high bit set
+      // - Reject negative integers: high bit set without leading 0x00
+      val rContentStart = offset + 2
+      if rLen > 1 && der(rContentStart) == 0.toByte && (der(rContentStart + 1) & 0x80) == 0 then break(Left(err)) // Non-minimal: unnecessary leading zero
+      if (der(rContentStart) & 0x80) != 0 then break(Left(err)) // Negative integer
+
+      if der(offset + 2 + rLen) != IntegerTag then break(Left(err))
 
       // Extract S
       val sLen = der(offset + 2 + rLen + 1) & 0xff
-      if seqLen != 2 + rLen + 2 + sLen then break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
+      if sLen == 0 then break(Left(err))
+      if seqLen != 2 + rLen + 2 + sLen then break(Left(err))
 
-      // Strip leading zero bytes from R
-      // scalafix:off DisableSyntax.var, DisableSyntax.while; byte-level DER manipulation
-      var rStart = offset + 2
+      // Strict DER INTEGER validation for S
+      val sContentStart = offset + 2 + rLen + 2
+      if sLen > 1 && der(sContentStart) == 0.toByte && (der(sContentStart + 1) & 0x80) == 0 then break(Left(err)) // Non-minimal: unnecessary leading zero
+      if (der(sContentStart) & 0x80) != 0 then break(Left(err)) // Negative integer
+
+      // Strip the DER sign byte (single leading 0x00 before high-bit byte)
+      // scalafix:off DisableSyntax.var; byte-level DER INTEGER sign byte stripping
+      var rStart = rContentStart
       var rEffLen = rLen
-      while rEffLen > 0 && der(rStart) == 0.toByte do
+      if rEffLen > 1 && der(rStart) == 0.toByte then
         rStart += 1
         rEffLen -= 1
 
-      // Strip leading zero bytes from S
-      var sStart = offset + 2 + rLen + 2
+      var sStart = sContentStart
       var sEffLen = sLen
-      while sEffLen > 0 && der(sStart) == 0.toByte do
+      if sEffLen > 1 && der(sStart) == 0.toByte then
         sStart += 1
         sEffLen -= 1
       // scalafix:on
 
-      if rEffLen > componentLength || sEffLen > componentLength then
-        break(Left(KufuliError.InvalidSignature("Malformed DER/concat ECDSA signature")))
+      if rEffLen > componentLength || sEffLen > componentLength then break(Left(err))
 
       val outputLength = componentLength * 2
       val result = new Array[Byte](outputLength)
