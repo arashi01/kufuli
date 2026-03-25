@@ -45,7 +45,7 @@ private[kufuli] object WebAlgorithm:
       case SignAlgorithm.EcdsaP384Sha384 => js.Dynamic.literal(name = "ECDSA", namedCurve = "P-384")
       case SignAlgorithm.EcdsaP521Sha512 => js.Dynamic.literal(name = "ECDSA", namedCurve = "P-521")
       case SignAlgorithm.Ed25519         => js.Dynamic.literal(name = "Ed25519")
-      case SignAlgorithm.Ed448           => js.Dynamic.literal(name = "Ed25519") // unreachable; Ed448 rejected by prePrepare
+      case SignAlgorithm.Ed448 => throw AssertionError("Ed448 rejected by KeyPreparer before reaching importParams") // scalafix:ok; This is not a code path that should ever be reached.
 
     /** Algorithm parameter object for `subtle.sign` and `subtle.verify`. */
     def signParams: js.Any = alg match
@@ -60,7 +60,7 @@ private[kufuli] object WebAlgorithm:
       case SignAlgorithm.EcdsaP384Sha384 => js.Dynamic.literal(name = "ECDSA", hash = "SHA-384")
       case SignAlgorithm.EcdsaP521Sha512 => js.Dynamic.literal(name = "ECDSA", hash = "SHA-512")
       case SignAlgorithm.Ed25519         => js.Dynamic.literal(name = "Ed25519")
-      case SignAlgorithm.Ed448           => js.Dynamic.literal(name = "Ed25519") // unreachable
+      case SignAlgorithm.Ed448 => throw AssertionError("Ed448 rejected by KeyPreparer before reaching signParams") // scalafix:ok; This is not a code path that should ever be reached.
   end extension
 
   extension (alg: DigestAlgorithm)

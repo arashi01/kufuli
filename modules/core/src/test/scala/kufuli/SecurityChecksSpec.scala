@@ -150,4 +150,45 @@ class SecurityChecksSpec extends FunSuite:
 
   test("preVerify passes through for RSA"):
     assert(SecurityChecks.preVerify(SignAlgorithm.RsaPkcs1Sha256, Array[Byte](1, 2, 3)).isRight)
+  // -- Signing direction validation --
+
+  test("validateSigningRole accepts symmetric key"):
+    val key = CryptoKey.Symmetric(new Array[Byte](32))
+    assert(SecurityChecks.validateSigningRole(key).isRight)
+
+  test("validateSigningRole accepts RSA private key"):
+    val key = CryptoKey.RsaPrivate(new Array[Byte](256),
+                                   Array[Byte](1),
+                                   Array[Byte](1),
+                                   Array[Byte](1),
+                                   Array[Byte](1),
+                                   Array[Byte](1),
+                                   Array[Byte](1),
+                                   Array[Byte](1)
+    )
+    assert(SecurityChecks.validateSigningRole(key).isRight)
+
+  test("validateSigningRole rejects RSA public key"):
+    val modulus = new Array[Byte](256)
+    modulus(0) = 0x80.toByte
+    val key = CryptoKey.RsaPublic(modulus, Array[Byte](1, 0, 1))
+    assert(SecurityChecks.validateSigningRole(key).isLeft)
+
+  test("validateSigningRole rejects EC public key"):
+    val key = CryptoKey.EcPublic(EcCurve.P256, p256Gx, p256Gy)
+    assert(SecurityChecks.validateSigningRole(key).isLeft)
+
+  test("validateSigningRole rejects OKP public key"):
+    val key = CryptoKey.OkpPublic(OkpCurve.Ed25519, new Array[Byte](32))
+    assert(SecurityChecks.validateSigningRole(key).isLeft)
+
+  test("validateSigningRole accepts EC private key"):
+    val d = new Array[Byte](32); d(31) = 1
+    val key = CryptoKey.EcPrivate(EcCurve.P256, p256Gx, p256Gy, d)
+    assert(SecurityChecks.validateSigningRole(key).isRight)
+
+  test("validateSigningRole accepts OKP private key"):
+    val key = CryptoKey.OkpPrivate(OkpCurve.Ed25519, new Array[Byte](32), new Array[Byte](32))
+    assert(SecurityChecks.validateSigningRole(key).isRight)
+
 end SecurityChecksSpec

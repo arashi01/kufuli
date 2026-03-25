@@ -47,10 +47,14 @@ given KeyPreparer with
   extension (key: CryptoKey)
 
     def prepareSigning(algorithm: SignAlgorithm): IO[KufuliError, PreparedKey[Signing]] =
-      prepare(key, algorithm, js.Array("sign")).map(PreparedKey.wrapKey[Signing])
+      ZIO
+        .fromEither(SecurityChecks.validateSigningRole(key))
+        .flatMap(_ => prepare(key, algorithm, js.Array("sign")))
+        .map(PreparedKey.wrapKey[Signing])
 
     def prepareVerifying(algorithm: SignAlgorithm): IO[KufuliError, PreparedKey[Verifying]] =
       prepare(key, algorithm, js.Array("verify")).map(PreparedKey.wrapKey[Verifying])
+end given
 
 private def prepare(key: CryptoKey, alg: SignAlgorithm, usages: js.Array[String]): IO[KufuliError, WebPreparedKey] =
   ZIO.fromEither(SecurityChecks.prePrepare(key, alg)).flatMap { _ =>

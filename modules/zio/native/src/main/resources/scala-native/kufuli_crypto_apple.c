@@ -343,6 +343,7 @@ static int hmac_sign(int alg_id,
     CCHmacAlgorithm cc_alg = get_hmac_alg(alg_id);
     size_t mac_len = get_hmac_len(alg_id);
     if (mac_len == 0) return KUFULI_ERR_UNSUPPORTED;
+    if (*sig_len < mac_len) return KUFULI_ERR_SIGN_FAILED;
 
     CCHmac(cc_alg, key, key_len, data, data_len, sig_out);
     *sig_len = mac_len;

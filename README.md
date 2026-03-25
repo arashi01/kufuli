@@ -54,6 +54,14 @@ libraryDependencies += "io.github.arashi01" %%% "kufuli-core" % "<version>"
 
 Digest algorithms: `Sha1`, `Sha256`, `Sha384`, `Sha512`.
 
+Resolve JWS "alg" header values at runtime via `SignAlgorithm.fromJwsName`:
+
+```scala
+SignAlgorithm.fromJwsName("ES256")                      // Right(EcdsaP256Sha256)
+SignAlgorithm.fromJwsName("EdDSA", OkpCurve.Ed25519)    // Right(Ed25519)
+SignAlgorithm.fromJwsName("EdDSA")                      // Left - requires curve
+```
+
 ### Platform Algorithm Support
 
 Not all algorithms are available on every platform. The table below shows which combinations are supported:
@@ -64,7 +72,7 @@ Not all algorithms are available on every platform. The table below shows which 
 | RSA PKCS#1 | Yes | Yes | Yes | Yes | Yes | Yes |
 | RSA-PSS | Yes | Yes | Yes | Yes | Yes | Yes |
 | ECDSA P-256/384/521 | Yes | Yes | Yes | Yes | Yes | Yes |
-| Ed25519 | Yes | Yes | No | Yes | No | No |
+| Ed25519 | Yes | Yes | Yes | Yes | No | No |
 | Ed448 | Yes | Yes | No | Yes | No | No |
 
 Attempting to use an unsupported algorithm returns `KufuliError.UnsupportedAlgorithm`.
@@ -173,6 +181,7 @@ Platform `given` instances are resolved automatically via `import kufuli.zio.giv
 ### Security
 
 - HMAC verification uses constant-time comparison on all platforms
+- `prepareSigning` rejects public-only keys; `prepareVerifying` accepts both
 - ECDSA signatures are pre-validated against the curve order before platform dispatch (CVE-2022-21449 mitigation)
 - EdDSA signatures are length-checked before verification
 - RSA keys require >= 2048-bit modulus; CRT invariant (n == p * q) is checked

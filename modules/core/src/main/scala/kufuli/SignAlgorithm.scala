@@ -43,6 +43,36 @@ end SignAlgorithm
 
 object SignAlgorithm:
 
+  /** Resolves a JWS "alg" header value per RFC 7518 (May 2015) ss3.1 to a [[SignAlgorithm]]. For
+    * EdDSA ("EdDSA"), use the overload accepting an [[OkpCurve]] to disambiguate between Ed25519
+    * and Ed448.
+    */
+  def fromJwsName(name: String): Either[KufuliError, SignAlgorithm] = name match
+    case "HS256" => Right(HmacSha256)
+    case "HS384" => Right(HmacSha384)
+    case "HS512" => Right(HmacSha512)
+    case "RS256" => Right(RsaPkcs1Sha256)
+    case "RS384" => Right(RsaPkcs1Sha384)
+    case "RS512" => Right(RsaPkcs1Sha512)
+    case "PS256" => Right(RsaPssSha256)
+    case "PS384" => Right(RsaPssSha384)
+    case "PS512" => Right(RsaPssSha512)
+    case "ES256" => Right(EcdsaP256Sha256)
+    case "ES384" => Right(EcdsaP384Sha384)
+    case "ES512" => Right(EcdsaP521Sha512)
+    case "EdDSA" => Left(KufuliError.UnsupportedAlgorithm("EdDSA requires a curve parameter; use fromJwsName(name, curve)"))
+    case other   => Left(KufuliError.UnsupportedAlgorithm(s"Unknown JWS algorithm: $other"))
+
+  /** Resolves an EdDSA JWS "alg" header value with an explicit [[OkpCurve]] per RFC 8037 (January
+    * 2018).
+    */
+  def fromJwsName(name: String, curve: OkpCurve): Either[KufuliError, SignAlgorithm] = name match
+    case "EdDSA" =>
+      curve match
+        case OkpCurve.Ed25519 => Right(Ed25519)
+        case OkpCurve.Ed448   => Right(Ed448)
+    case other => fromJwsName(other)
+
   extension (alg: SignAlgorithm)
 
     /** The digest algorithm used internally by this signing algorithm. Returns `None` for EdDSA

@@ -102,4 +102,62 @@ class EcdsaCodecSpec extends FunSuite:
     val der = EcdsaCodec.concatToDer(concat).toOption.get
     val roundTripped = EcdsaCodec.derToConcat(der, 32).toOption.get
     assertEquals(roundTripped.toList, concat.toList)
+  // -- Strict DER rejection tests --
+
+  test("derToConcat rejects indefinite-length BER encoding (0x80)"):
+    // SEQUENCE with indefinite length: 30 80 ... 00 00
+    val ber = Array[Byte](0x30, 0x80.toByte, 0x02, 0x01, 0x01, 0x02, 0x01, 0x01, 0x00, 0x00)
+    assert(EcdsaCodec.derToConcat(ber, 32).isLeft)
+
+  test("derToConcat rejects non-minimal SEQUENCE length (long form for short value)"):
+    // SEQUENCE length 6 encoded as 0x81 0x06 instead of just 0x06
+    val nonMinimal = Array[Byte](0x30, 0x81.toByte, 0x06, 0x02, 0x01, 0x01, 0x02, 0x01, 0x01)
+    assert(EcdsaCodec.derToConcat(nonMinimal, 32).isLeft)
+
+  test("derToConcat rejects non-minimal INTEGER encoding (unnecessary leading zero)"):
+    // R encoded as 02 02 00 01 (two bytes with unnecessary leading zero for value 1)
+    val nonMinimalInt = Array[Byte](0x30, 0x08, 0x02, 0x02, 0x00, 0x01, 0x02, 0x02, 0x00, 0x01)
+    assert(EcdsaCodec.derToConcat(nonMinimalInt, 32).isLeft)
+
+  test("derToConcat rejects negative INTEGER (high bit set without leading zero)"):
+    // R = 0x80 encoded directly without sign byte: 02 01 80
+    val negativeInt = Array[Byte](0x30, 0x06, 0x02, 0x01, 0x80.toByte, 0x02, 0x01, 0x01)
+    assert(EcdsaCodec.derToConcat(negativeInt, 32).isLeft)
+
+  test("derToConcat rejects zero-length INTEGER"):
+    // R with length 0: 02 00
+    val zeroLenInt = Array[Byte](0x30, 0x04, 0x02, 0x00, 0x02, 0x01, 0x01)
+    assert(EcdsaCodec.derToConcat(zeroLenInt, 32).isLeft)
+
+  test("derToConcat rejects SEQUENCE length mismatch"):
+    // SEQUENCE says 8 bytes but only 6 bytes of content follow
+    val mismatch = Array[Byte](0x30, 0x08, 0x02, 0x01, 0x01, 0x02, 0x01, 0x01)
+    assert(EcdsaCodec.derToConcat(mismatch, 32).isLeft)
+
+  test("derToConcat rejects wrong INTEGER tag for S"):
+    // Second element tagged 0x03 (BIT STRING) instead of 0x02 (INTEGER)
+    val wrongTag = Array[Byte](0x30, 0x06, 0x02, 0x01, 0x01, 0x03, 0x01, 0x01)
+    assert(EcdsaCodec.derToConcat(wrongTag, 32).isLeft)
+
+  // -- P-521 maximum-length component round-trip --
+
+  test("round-trip with P-521 maximum-length components (high bit set)"):
+    // Both R and S are 66 bytes with high bit set (requires sign padding in DER)
+    val concat = new Array[Byte](132)
+    java.util.Arrays.fill(concat, 0, 66, 0xff.toByte) // R = all 0xFF
+    java.util.Arrays.fill(concat, 66, 132, 0xfe.toByte) // S = all 0xFE
+    val der = EcdsaCodec.concatToDer(concat).toOption.get
+    val roundTripped = EcdsaCodec.derToConcat(der, 66).toOption.get
+    assertEquals(roundTripped.toList, concat.toList)
+
+  test("derToConcat rejects component larger than componentLength"):
+    // Build a DER where R is 33 bytes but componentLength is 32
+    val rBytes = new Array[Byte](33)
+    rBytes(0) = 0x01
+    val sBytes = Array[Byte](0x01)
+    val contentLen = 2 + rBytes.length + 2 + sBytes.length
+    val der =
+      Array[Byte](0x30, contentLen.toByte, 0x02, rBytes.length.toByte) ++ rBytes ++ Array[Byte](0x02, sBytes.length.toByte) ++ sBytes
+    assert(EcdsaCodec.derToConcat(der, 32).isLeft)
+
 end EcdsaCodecSpec
