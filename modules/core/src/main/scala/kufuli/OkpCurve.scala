@@ -20,27 +20,33 @@
  */
 package kufuli
 
-/** EdDSA curve identifiers per RFC 8037 (January 2018) and RFC 8032 (January 2017). */
+/** Octet key pair curve identifiers for EdDSA signing per RFC 8037 (January 2018) and RFC 8032
+  * (January 2017), and X25519 key agreement per RFC 7748 (January 2016).
+  */
 enum OkpCurve derives CanEqual:
-  case Ed25519, Ed448
+  case Ed25519, Ed448, X25519
 
 object OkpCurve:
 
   extension (curve: OkpCurve)
 
-    /** Public key byte length per RFC 8032 (January 2017). */
+    /** Public key byte length per RFC 8032 (January 2017) and RFC 7748 (January 2016). */
     inline def keyLength: Int = curve match
-      case Ed25519 => 32
-      case Ed448   => 57
+      case Ed25519 | X25519 => 32
+      case Ed448            => 57
 
-    /** Signature byte length per RFC 8032 (January 2017). */
-    inline def signatureLength: Int = curve match
-      case Ed25519 => 64
-      case Ed448   => 114
+    /** Signature byte length per RFC 8032 (January 2017). Returns `None` for key agreement curves
+      * (X25519) which do not produce signatures.
+      */
+    def signatureLength: Option[Int] = curve match
+      case Ed25519 => Some(64)
+      case Ed448   => Some(114)
+      case X25519  => None
 
-    /** JWK "crv" parameter value per RFC 8037 (January 2018) ss2. */
+    /** JWK "crv" parameter value per RFC 8037 (January 2018) ss2 and RFC 7748 (January 2016). */
     inline def jwkName: String = curve match
       case Ed25519 => "Ed25519"
       case Ed448   => "Ed448"
+      case X25519  => "X25519"
   end extension
 end OkpCurve

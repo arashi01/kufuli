@@ -46,7 +46,7 @@ given Signer with
       // Pattern match narrows PreparedKeyInternal -> JvmPreparedKey, Key -> SecretKey/PrivateKey
       PreparedKey.unwrapKey[Signing](key) match
         case jvmKey: JvmPreparedKey =>
-          val alg = jvmKey.algorithm
+          val alg = jvmKey.signAlgorithm
           (alg, jvmKey.jcaKey) match
             case (_: SignAlgorithm.HmacSha256.type | _: SignAlgorithm.HmacSha384.type | _: SignAlgorithm.HmacSha512.type, sk: SecretKey) =>
               hmacSign(sk, data, alg).map(Signature.wrapRaw)

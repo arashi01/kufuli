@@ -134,7 +134,8 @@ private[kufuli] object SecurityChecks:
     )
 
   /** Validates that an OKP private key seed has the correct byte length for its curve per RFC 8032
-    * (January 2017). Ed25519 seeds are 32 bytes; Ed448 seeds are 57 bytes.
+    * (January 2017) and RFC 7748 (January 2016). Ed25519 and X25519 seeds are 32 bytes; Ed448 seeds
+    * are 57 bytes.
     */
   private[kufuli] def validateOkpPrivateKeyLength(
     curve: OkpCurve,
@@ -220,13 +221,16 @@ private[kufuli] object SecurityChecks:
       case None        =>
         alg.okpCurve match
           case Some(curve) =>
-            Either.cond(
-              signature.length == curve.signatureLength,
-              (),
-              KufuliError.InvalidSignature(
-                s"Expected ${curve.signatureLength} bytes for ${curve.jwkName}, got ${signature.length}"
-              )
-            )
+            curve.signatureLength match
+              case Some(expectedLen) =>
+                Either.cond(
+                  signature.length == expectedLen,
+                  (),
+                  KufuliError.InvalidSignature(
+                    s"Expected $expectedLen bytes for ${curve.jwkName}, got ${signature.length}"
+                  )
+                )
+              case None => Left(KufuliError.InvalidSignature(s"${curve.jwkName} is not a signing curve"))
           case None => Right(())
 
 end SecurityChecks

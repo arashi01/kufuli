@@ -53,6 +53,9 @@ class SignAlgorithmSpec extends FunSuite:
   test("fromJwsName with OkpCurve falls through for non-EdDSA"):
     assertEquals(SignAlgorithm.fromJwsName("ES256", OkpCurve.Ed25519), Right(SignAlgorithm.EcdsaP256Sha256))
 
+  test("fromJwsName with OkpCurve rejects X25519 for EdDSA"):
+    assert(SignAlgorithm.fromJwsName("EdDSA", OkpCurve.X25519).isLeft)
+
   test("jwsName round-trips with fromJwsName for all non-EdDSA algorithms"):
     assertEquals(SignAlgorithm.fromJwsName(SignAlgorithm.HmacSha256.jwsName), Right(SignAlgorithm.HmacSha256))
     assertEquals(SignAlgorithm.fromJwsName(SignAlgorithm.HmacSha384.jwsName), Right(SignAlgorithm.HmacSha384))

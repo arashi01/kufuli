@@ -44,7 +44,7 @@ given Verifier with
       val sigBytes = Signature.unwrapRaw(signature)
       PreparedKey.unwrapKey[Verifying](key) match
         case webKey: WebPreparedKey =>
-          val alg = webKey.algorithm
+          val alg = webKey.signAlgorithm
           ZIO.fromEither(SecurityChecks.preVerify(alg, sigBytes)).flatMap { _ =>
             val dataArr = ByteConversions.toUint8Array(data)
             val sigArr = ByteConversions.toUint8Array(sigBytes)

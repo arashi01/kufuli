@@ -21,9 +21,9 @@
 package kufuli.native.internal
 
 import _root_.kufuli.SignAlgorithm
-import _root_.kufuli.zio.PreparedKeyInternal
+import _root_.kufuli.zio.SigningKeyInternal
 
-/** Native prepared key wrapping encoded key bytes and a pre-computed C algorithm ID.
+/** Native prepared signing key wrapping encoded key bytes and a pre-computed C algorithm ID.
   *
   * Key bytes are raw for symmetric keys, SubjectPublicKeyInfo DER for public keys, and PKCS#8 DER
   * for private keys.
@@ -31,5 +31,5 @@ import _root_.kufuli.zio.PreparedKeyInternal
 final private[kufuli] class NativePreparedKey(
   val keyBytes: Array[Byte],
   val nativeAlgId: Int,
-  val algorithm: SignAlgorithm
-) extends PreparedKeyInternal
+  val signAlgorithm: SignAlgorithm
+) extends SigningKeyInternal

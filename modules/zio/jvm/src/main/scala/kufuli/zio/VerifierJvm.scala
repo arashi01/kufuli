@@ -49,7 +49,7 @@ given Verifier with
       // Pattern match narrows PreparedKeyInternal -> JvmPreparedKey, Key -> SecretKey/PublicKey
       PreparedKey.unwrapKey[Verifying](key) match
         case jvmKey: JvmPreparedKey =>
-          val alg = jvmKey.algorithm
+          val alg = jvmKey.signAlgorithm
           ZIO.fromEither(SecurityChecks.preVerify(alg, sigBytes)).flatMap { _ =>
             (alg, jvmKey.jcaKey) match
               case (_: SignAlgorithm.HmacSha256.type | _: SignAlgorithm.HmacSha384.type | _: SignAlgorithm.HmacSha512.type,

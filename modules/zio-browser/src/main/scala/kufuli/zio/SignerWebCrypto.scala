@@ -46,7 +46,7 @@ given Signer with
         case webKey: WebPreparedKey =>
           val dataArr = ByteConversions.toUint8Array(data)
           ZIO
-            .fromPromiseJS(WebCryptoGlobal.subtle.sign(webKey.algorithm.signParams, webKey.cryptoKey, dataArr))
+            .fromPromiseJS(WebCryptoGlobal.subtle.sign(webKey.signAlgorithm.signParams, webKey.cryptoKey, dataArr))
             .map(ab => Signature.wrapRaw(ByteConversions.toByteArray(new Uint8Array(ab))))
             .mapError(_ => KufuliError.SignatureFailure("Web Crypto signing failed"))
         case _ => ZIO.fail(KufuliError.SignatureFailure("Unexpected prepared key type"))
