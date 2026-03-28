@@ -85,13 +85,18 @@ object CryptoKey:
     yield RsaPrivate(modulus.clone(), exponent.clone(), d.clone(), p.clone(), q.clone(), dp.clone(), dq.clone(), qi.clone())
 
   def ecPublic(curve: EcCurve, x: Array[Byte], y: Array[Byte]): Either[KufuliError, CryptoKey] =
-    SecurityChecks.validatePointOnCurve(curve, x, y).map(_ => EcPublic(curve, x.clone(), y.clone()))
+    SecurityChecks.validatePointOnCurve(curve, x, y).map { _ =>
+      val len = curve.componentLength
+      EcPublic(curve, padToLength(x, len), padToLength(y, len))
+    }
 
   def ecPrivate(curve: EcCurve, x: Array[Byte], y: Array[Byte], d: Array[Byte]): Either[KufuliError, CryptoKey] =
     for
       _ <- SecurityChecks.validatePointOnCurve(curve, x, y)
       _ <- SecurityChecks.validateEcPrivateScalar(curve, d)
-    yield EcPrivate(curve, x.clone(), y.clone(), d.clone())
+    yield
+      val len = curve.componentLength
+      EcPrivate(curve, padToLength(x, len), padToLength(y, len), padToLength(d, len))
 
   def okpPublic(curve: OkpCurve, x: Array[Byte]): Either[KufuliError, CryptoKey] =
     SecurityChecks.validateOkpKeyLength(curve, x).map(_ => OkpPublic(curve, x.clone()))
@@ -150,4 +155,18 @@ object CryptoKey:
       case (OkpPublic(ac, ax), OkpPublic(bc, bx))           => (ac == bc) & ConstantTime.equals(ax, bx)
       case (OkpPrivate(ac, ax, ad), OkpPrivate(bc, bx, bd)) => (ac == bc) & ConstantTime.equals(ax, bx) & ConstantTime.equals(ad, bd)
       case _                                                => false
+
+  /** Normalises a big-endian unsigned integer byte array to exactly `len` bytes: strips leading
+    * zeros then left-pads with zeros. This ensures EC coordinate and scalar arrays are stored at
+    * the canonical length for their curve, which is required for correct DER encoding of
+    * uncompressed EC points (04 || x || y) per SEC 1 v2 (May 2009) ss2.3.3.
+    */
+  private def padToLength(bytes: Array[Byte], len: Int): Array[Byte] =
+    val stripped = bytes.dropWhile(_ == 0)
+    if stripped.length == len then stripped.clone()
+    else if stripped.length < len then
+      val out = new Array[Byte](len)
+      System.arraycopy(stripped, 0, out, len - stripped.length, stripped.length)
+      out
+    else throw AssertionError(s"EC component $len bytes expected after validation, got ${stripped.length}") // scalafix:ok
 end CryptoKey

@@ -40,9 +40,13 @@ opaque type Signature = Array[Byte]
 
 /** Smart constructors and format conversion for [[Signature]].
   *
-  * Does not extend [[boilerplate.OpaqueType OpaqueType]] because array-backed types require
-  * `CanEqual` suppression to prevent silently wrong reference equality (same rationale as
-  * [[CryptoKey]]).
+  * Does not extend [[boilerplate.OpaqueType OpaqueType]] because the smart constructors require
+  * additional parameters beyond the wrapped value ([[ecdsaConcat]] and [[ecdsaDer]] take an
+  * [[EcCurve]]), which cannot be expressed via `OpaqueType.from(value: Repr)`. Additionally,
+  * `OpaqueType.wrap` is public and would bypass defensive cloning and ECDSA validation.
+  *
+  * `CanEqual` is intentionally omitted: array-backed `==` is reference equality, producing silently
+  * wrong results. Under strict equality this is a compile error.
   */
 object Signature:
 
