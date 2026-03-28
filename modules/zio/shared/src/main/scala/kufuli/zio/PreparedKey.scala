@@ -50,11 +50,12 @@ opaque type PreparedKey[+R <: KeyRole] = PreparedKeyInternal
 
 /** Factory and unwrap operations for [[PreparedKey]].
   *
-  * Extends [[boilerplate.OpaqueType OpaqueType]] per project constraints. Platform backends use
-  * [[wrapKey]] and [[unwrapKey]] for typed construction and extraction.
+  * Extends [[boilerplate.OpaqueType OpaqueType]] per project constraints. `CanEqual` is
+  * intentionally omitted (no [[boilerplate.OpaqueType$.Eq Eq]] mixin) - comparing prepared keys is
+  * not a meaningful operation and would be misleading. Platform backends use [[wrapKey]] and
+  * [[unwrapKey]] for typed construction and extraction.
   */
-object PreparedKey extends OpaqueType[PreparedKey[KeyRole]]:
-  type Type = PreparedKeyInternal
+object PreparedKey extends OpaqueType[PreparedKey[KeyRole], PreparedKeyInternal]:
   type Error = KufuliError
 
   inline def wrap(value: PreparedKeyInternal): PreparedKey[KeyRole] = value
@@ -64,4 +65,3 @@ object PreparedKey extends OpaqueType[PreparedKey[KeyRole]]:
 
   private[kufuli] def wrapKey[R <: KeyRole](internal: PreparedKeyInternal): PreparedKey[R] = internal
   private[kufuli] def unwrapKey[R <: KeyRole](key: PreparedKey[R]): PreparedKeyInternal = key
-end PreparedKey

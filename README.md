@@ -203,7 +203,8 @@ Platform `given` instances are resolved automatically via `import kufuli.zio.giv
 - Key material byte arrays are cloned on construction to prevent external mutation
 - Key equality uses constant-time comparison (`CryptoKey.contentEquals`)
 - Strict DER parsing rejects non-canonical BER encodings
-- Tested against [Wycheproof](https://github.com/C2SP/wycheproof) vectors (ECDSA, RSA PKCS#1, RSA-PSS, Ed25519)
+- EC coordinate bytes normalised to canonical curve length on construction
+- Tested against [Wycheproof](https://github.com/C2SP/wycheproof) vectors (ECDSA, RSA PKCS#1, RSA-PSS, Ed25519, HMAC) and RFC known-answer vectors (RFC 4231, RFC 8032)
 
 ## Modules
 

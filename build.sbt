@@ -20,7 +20,7 @@ inThisBuild(
 )
 
 val libraries = new {
-  val boilerplate = Def.setting("io.github.arashi01" %%% "boilerplate" % "0.6.0")
+  val boilerplate = Def.setting("io.github.arashi01" %%% "boilerplate" % "0.7.0")
   val `jsoniter-scala-core` = Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % "2.38.9")
   val `jsoniter-scala-macros` = Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-macros" % "2.38.9")
   val munit = Def.setting("org.scalameta" %%% "munit" % "1.2.4")
@@ -104,25 +104,53 @@ val `kufuli-zio-browser` =
     .settings(Test / jsEnv := new jsenv.playwright.PWEnv(browserName = "chromium", headless = true, showLogs = true))
     .dependsOn(`kufuli-testkit`.js % Test)
 
-val `kufuli-zio-tests` =
+val `kufuli-tests` =
   crossProject(JVMPlatform, JSPlatform, NativePlatform)
     .withoutSuffixFor(JVMPlatform)
     .crossType(CrossType.Full)
-    .in(file("modules/zio-tests"))
+    .in(file("modules/tests"))
     .dependsOn(`kufuli-zio`, `kufuli-testkit`)
+    .enablePlugins(WycheproofPlugin)
     .settings(compilerSettings)
     .settings(unitTestSettings)
     .settings(fileHeaderSettings)
     .settings(publish / skip := true)
-    .settings(description := "ZIO test instantiation for kufuli testkit")
+    .settings(description := "Cross-platform integration tests for kufuli")
     .nativeSettings(nativeSettings)
     .nativeSettings(nativeCryptoLinkSettings)
     .jsSettings(jsSettings)
-    .settings(libraryDependencies += libraries.zio.value)
-    .jvmSettings(
+    .settings(
       libraryDependencies ++= List(
+        libraries.zio.value,
         libraries.`jsoniter-scala-core`.value % Test,
         libraries.`jsoniter-scala-macros`.value % Test
+      )
+    )
+    .settings(
+      WycheproofPlugin.autoImport.wycheproofTargetPackage := "kufuli.tests.wycheproof",
+      WycheproofPlugin.autoImport.wycheproofVectorFiles := Seq(
+        // ECDSA (DER)
+        "ecdsa_secp256r1_sha256_test.json",
+        "ecdsa_secp384r1_sha384_test.json",
+        "ecdsa_secp521r1_sha512_test.json",
+        // ECDSA (P1363)
+        "ecdsa_secp256r1_sha256_p1363_test.json",
+        "ecdsa_secp384r1_sha384_p1363_test.json",
+        "ecdsa_secp521r1_sha512_p1363_test.json",
+        // Ed25519
+        "ed25519_test.json",
+        // RSA PKCS#1
+        "rsa_signature_2048_sha256_test.json",
+        "rsa_signature_2048_sha384_test.json",
+        "rsa_signature_2048_sha512_test.json",
+        // RSA-PSS
+        "rsa_pss_2048_sha256_mgf1_32_test.json",
+        "rsa_pss_2048_sha384_mgf1_48_test.json",
+        "rsa_pss_4096_sha512_mgf1_64_test.json",
+        // HMAC
+        "hmac_sha256_test.json",
+        "hmac_sha384_test.json",
+        "hmac_sha512_test.json"
       )
     )
 
@@ -134,7 +162,7 @@ val `kufuli-jvm` =
       `kufuli-core`.jvm,
       `kufuli-zio`.jvm,
       `kufuli-testkit`.jvm,
-      `kufuli-zio-tests`.jvm
+      `kufuli-tests`.jvm
     )
 
 val `kufuli-js` =
@@ -147,7 +175,7 @@ val `kufuli-js` =
       `kufuli-zio`.js,
       `kufuli-zio-browser`,
       `kufuli-testkit`.js,
-      `kufuli-zio-tests`.js
+      `kufuli-tests`.js
     )
 
 val `kufuli-native` =
@@ -158,7 +186,7 @@ val `kufuli-native` =
       `kufuli-core`.native,
       `kufuli-zio`.native,
       `kufuli-testkit`.native,
-      `kufuli-zio-tests`.native
+      `kufuli-tests`.native
     )
 
 val `kufuli-root` =
