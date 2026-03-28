@@ -63,6 +63,8 @@ object Digest:
     */
   def constantTimeEquals(a: Digest, b: Digest): Boolean = ConstantTime.equals(a, b)
 
+  private val HexChars: Array[Char] = "0123456789abcdef".toCharArray
+
   extension (d: Digest)
 
     /** Returns a defensive copy of the raw digest bytes. */
@@ -70,6 +72,20 @@ object Digest:
 
     /** Returns the byte length of this digest. */
     def length: Int = d.length
+
+    /** Returns a lowercase hexadecimal string representation of this digest. */
+    def toHex: String =
+      val result = new Array[Char](d.length * 2)
+      // scalafix:off DisableSyntax.var, DisableSyntax.while; byte-to-hex encoding avoids intermediary collections
+      var i = 0
+      while i < d.length do
+        val b = d(i) & 0xff
+        result(i * 2) = HexChars(b >>> 4)
+        result(i * 2 + 1) = HexChars(b & 0x0f)
+        i += 1
+      // scalafix:on
+      String(result)
+  end extension
 
   /** Wraps raw bytes without cloning. For internal use by platform backends that produce freshly
     * allocated digest bytes.

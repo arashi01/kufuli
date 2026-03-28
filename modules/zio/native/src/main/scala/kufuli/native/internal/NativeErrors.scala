@@ -39,7 +39,7 @@ private[kufuli] object NativeErrors:
   def verifyError(code: Int): KufuliError = code match
     case Unsupported      => KufuliError.UnsupportedAlgorithm("Native platform does not support this algorithm")
     case InvalidKey       => KufuliError.InvalidKey("Native key import failed")
-    case InvalidSignature => KufuliError.InvalidSignature("Signature verification failed")
+    case InvalidSignature => KufuliError.SignatureMismatch("Signature verification failed")
     case _                => KufuliError.VerificationFailure("Native verification failed")
 
   /** Converts a non-zero C error code from `kufuli_digest` to a [[kufuli.KufuliError KufuliError]]. */

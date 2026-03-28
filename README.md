@@ -130,10 +130,11 @@ sig.toEcdsaConcat(EcCurve.P256)         // Signature -> Either[KufuliError, Arra
 val sig = Signature.raw(signatureBytes)
 ```
 
-`Digest` provides timing-safe comparison to prevent side-channel attacks:
+`Digest` provides timing-safe comparison and hex display:
 
 ```scala
 Digest.constantTimeEquals(computed, stored) // Boolean, constant-time
+digest.toHex                                // "e3b0c44298fc1c14..."
 ```
 
 ### Key Construction
@@ -152,6 +153,17 @@ CryptoKey.okpPrivate(OkpCurve.Ed25519, x, d)
 
 All byte arrays are defensively cloned. RSA keys require >= 2048-bit modulus. EC keys are validated against the curve equation. OKP keys are validated for correct length.
 
+### Key Introspection
+
+`CryptoKey` exposes structural metadata without revealing key material:
+
+```scala
+key.keyType    // KeyType.Symmetric | Rsa | Ec | Okp
+key.ecCurve    // Option[EcCurve] - Some for EC keys
+key.okpCurve   // Option[OkpCurve] - Some for OKP keys
+key.isPrivate  // true for symmetric, private RSA/EC/OKP keys
+```
+
 ### Error Handling
 
 All errors are values in the `KufuliError` ADT (extends `Throwable` with `NoStackTrace`):
@@ -159,7 +171,8 @@ All errors are values in the `KufuliError` ADT (extends `Throwable` with `NoStac
 | Variant | Meaning |
 | ------- | ------- |
 | `InvalidKey` | Key material fails validation (wrong size, not on curve, CRT mismatch) |
-| `InvalidSignature` | Signature is structurally invalid or verification failed |
+| `InvalidSignature` | Signature bytes are structurally invalid (wrong length, malformed DER, component out of range) |
+| `SignatureMismatch` | Signature is well-formed but does not verify against the provided data and key |
 | `UnsupportedAlgorithm` | Algorithm not available on this platform |
 | `SignatureFailure` | Platform signing operation failed |
 | `VerificationFailure` | Platform verification operation failed |

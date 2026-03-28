@@ -161,4 +161,53 @@ class CryptoKeySpec extends FunSuite:
     val k1 = CryptoKey.ecPublic(EcCurve.P256, p256Gx, p256Gy).toOption.get
     val k2 = CryptoKey.ecPublic(EcCurve.P384, p384Gx, p384Gy).toOption.get
     assert(!CryptoKey.contentEquals(k1, k2))
+
+  // -- Introspection --
+
+  test("keyType returns Symmetric for symmetric key"):
+    val key = CryptoKey.symmetric(Array[Byte](1, 2, 3)).toOption.get
+    assertEquals(key.keyType, KeyType.Symmetric)
+
+  test("keyType returns Rsa for RSA public key"):
+    val modulus = new Array[Byte](256)
+    modulus(0) = 0x80.toByte
+    val key = CryptoKey.rsaPublic(modulus, Array[Byte](1, 0, 1)).toOption.get
+    assertEquals(key.keyType, KeyType.Rsa)
+
+  test("keyType returns Ec for EC public key"):
+    val p256Gx =
+      BigInteger(
+        "6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296",
+        16
+      ).toByteArray.dropWhile(_ == 0)
+    val p256Gy =
+      BigInteger(
+        "4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5",
+        16
+      ).toByteArray.dropWhile(_ == 0)
+    val key = CryptoKey.ecPublic(EcCurve.P256, p256Gx, p256Gy).toOption.get
+    assertEquals(key.keyType, KeyType.Ec)
+    assertEquals(key.ecCurve, Some(EcCurve.P256))
+    assertEquals(key.okpCurve, None)
+
+  test("keyType returns Okp for OKP public key"):
+    val key = CryptoKey.okpPublic(OkpCurve.Ed25519, new Array[Byte](32)).toOption.get
+    assertEquals(key.keyType, KeyType.Okp)
+    assertEquals(key.okpCurve, Some(OkpCurve.Ed25519))
+    assertEquals(key.ecCurve, None)
+
+  test("isPrivate returns true for symmetric key"):
+    val key = CryptoKey.symmetric(Array[Byte](1, 2, 3)).toOption.get
+    assert(key.isPrivate)
+
+  test("isPrivate returns false for RSA public key"):
+    val modulus = new Array[Byte](256)
+    modulus(0) = 0x80.toByte
+    val key = CryptoKey.rsaPublic(modulus, Array[Byte](1, 0, 1)).toOption.get
+    assert(!key.isPrivate)
+
+  test("isPrivate returns false for OKP public key"):
+    val key = CryptoKey.okpPublic(OkpCurve.Ed25519, new Array[Byte](32)).toOption.get
+    assert(!key.isPrivate)
+
 end CryptoKeySpec

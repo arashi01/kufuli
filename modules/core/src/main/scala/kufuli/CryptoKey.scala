@@ -102,6 +102,35 @@ object CryptoKey:
       _ <- SecurityChecks.validateOkpPrivateKeyLength(curve, d)
     yield OkpPrivate(curve, x.clone(), d.clone())
 
+  extension (key: CryptoKey)
+
+    /** Structural classification of this key. */
+    def keyType: KeyType = key match
+      case _: Symmetric                 => KeyType.Symmetric
+      case _: RsaPublic | _: RsaPrivate => KeyType.Rsa
+      case _: EcPublic | _: EcPrivate   => KeyType.Ec
+      case _: OkpPublic | _: OkpPrivate => KeyType.Okp
+
+    /** The associated EC curve, if this is an EC key. */
+    def ecCurve: Option[EcCurve] = key match
+      case k: EcPublic  => Some(k.curve)
+      case k: EcPrivate => Some(k.curve)
+      case _            => None
+
+    /** The associated OKP curve, if this is an OKP key. */
+    def okpCurve: Option[OkpCurve] = key match
+      case k: OkpPublic  => Some(k.curve)
+      case k: OkpPrivate => Some(k.curve)
+      case _             => None
+
+    /** Whether this key contains private material. Returns `true` for symmetric, RSA private, EC
+      * private, and OKP private keys.
+      */
+    def isPrivate: Boolean = key match
+      case _: Symmetric | _: RsaPrivate | _: EcPrivate | _: OkpPrivate => true
+      case _                                                           => false
+  end extension
+
   /** Value-based equality for two crypto keys. All byte array fields are compared using
     * constant-time comparison to prevent timing side-channel leakage of key material.
     */
