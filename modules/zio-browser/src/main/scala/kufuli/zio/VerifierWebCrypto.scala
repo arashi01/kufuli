@@ -50,9 +50,9 @@ given Verifier with
             val sigArr = ByteConversions.toUint8Array(sigBytes)
             ZIO
               .fromPromiseJS(WebCryptoGlobal.subtle.verify(alg.signParams, webKey.cryptoKey, sigArr, dataArr))
-              .mapError(_ => KufuliError.InvalidSignature("Signature verification failed"))
+              .mapError(_ => KufuliError.VerificationFailure("Web Crypto verification threw"))
               .flatMap { valid =>
-                ZIO.cond(valid, (), KufuliError.InvalidSignature("Signature verification failed"))
+                ZIO.cond(valid, (), KufuliError.SignatureMismatch("Signature verification failed"))
               }
           }
         case _ => ZIO.fail(KufuliError.VerificationFailure("Unexpected prepared key type"))

@@ -64,4 +64,34 @@ class DigestSpec extends FunSuite:
     val b = Digest.from(bBytes, DigestAlgorithm.Sha256).toOption.get
     assert(!Digest.constantTimeEquals(a, b))
 
+  test("Digest.toHex produces correct lowercase hex for known bytes"):
+    val bytes = Array[Byte](0x00,
+                            0x0a,
+                            0xff.toByte,
+                            0x10,
+                            0xab.toByte,
+                            0x00,
+                            0x00,
+                            0x00,
+                            0x00,
+                            0x00,
+                            0x00,
+                            0x00,
+                            0x00,
+                            0x00,
+                            0x00,
+                            0x00,
+                            0x00,
+                            0x00,
+                            0x00,
+                            0x00
+    )
+    val digest = Digest.from(bytes, DigestAlgorithm.Sha1).toOption.get
+    assert(digest.toHex.startsWith("000aff10ab"))
+
+  test("Digest.toHex of all-zero SHA-256 produces 64 hex chars"):
+    val digest = Digest.from(new Array[Byte](32), DigestAlgorithm.Sha256).toOption.get
+    assertEquals(digest.toHex.length, 64)
+    assertEquals(digest.toHex, "0" * 64)
+
 end DigestSpec

@@ -76,7 +76,7 @@ private def hmacVerify(keyObject: KeyObject, data: Uint8Array, signature: Uint8A
     }
     .mapError(_ => KufuliError.VerificationFailure("HMAC computation failed"))
     .flatMap { valid =>
-      ZIO.cond(valid, (), KufuliError.InvalidSignature("HMAC mismatch"))
+      ZIO.cond(valid, (), KufuliError.SignatureMismatch("HMAC mismatch"))
     }
 
 private def pssVerify(keyObject: KeyObject, data: Uint8Array, signature: Uint8Array, digestName: String): IO[KufuliError, Unit] =
@@ -86,8 +86,8 @@ private def pssVerify(keyObject: KeyObject, data: Uint8Array, signature: Uint8Ar
         VerifyKeyOptions.pss(keyObject, NodeCrypto.constants.RSA_PKCS1_PSS_PADDING, NodeCrypto.constants.RSA_PSS_SALTLEN_DIGEST)
       NodeCrypto.verify(digestName, data, opts, signature)
     }
-    .mapError(_ => KufuliError.InvalidSignature("Signature verification failed"))
-    .flatMap(valid => ZIO.cond(valid, (), KufuliError.InvalidSignature("Signature verification failed")))
+    .mapError(_ => KufuliError.VerificationFailure("Node.js verification threw"))
+    .flatMap(valid => ZIO.cond(valid, (), KufuliError.SignatureMismatch("Signature verification failed")))
 
 private def ecdsaVerify(keyObject: KeyObject, data: Uint8Array, signature: Uint8Array, digestName: String): IO[KufuliError, Unit] =
   ZIO
@@ -95,17 +95,17 @@ private def ecdsaVerify(keyObject: KeyObject, data: Uint8Array, signature: Uint8
       val opts = VerifyKeyOptions.ecdsa(keyObject)
       NodeCrypto.verify(digestName, data, opts, signature)
     }
-    .mapError(_ => KufuliError.InvalidSignature("Signature verification failed"))
-    .flatMap(valid => ZIO.cond(valid, (), KufuliError.InvalidSignature("Signature verification failed")))
+    .mapError(_ => KufuliError.VerificationFailure("Node.js verification threw"))
+    .flatMap(valid => ZIO.cond(valid, (), KufuliError.SignatureMismatch("Signature verification failed")))
 
 private def rsaPkcs1Verify(keyObject: KeyObject, data: Uint8Array, signature: Uint8Array, digestName: String): IO[KufuliError, Unit] =
   ZIO
     .attempt(NodeCrypto.verify(digestName, data, keyObject, signature))
-    .mapError(_ => KufuliError.InvalidSignature("Signature verification failed"))
-    .flatMap(valid => ZIO.cond(valid, (), KufuliError.InvalidSignature("Signature verification failed")))
+    .mapError(_ => KufuliError.VerificationFailure("Node.js verification threw"))
+    .flatMap(valid => ZIO.cond(valid, (), KufuliError.SignatureMismatch("Signature verification failed")))
 
 private def eddsaVerify(keyObject: KeyObject, data: Uint8Array, signature: Uint8Array): IO[KufuliError, Unit] =
   ZIO
     .attempt(NodeCrypto.verify(js.undefined, data, keyObject, signature))
-    .mapError(_ => KufuliError.InvalidSignature("Signature verification failed"))
-    .flatMap(valid => ZIO.cond(valid, (), KufuliError.InvalidSignature("Signature verification failed")))
+    .mapError(_ => KufuliError.VerificationFailure("Node.js verification threw"))
+    .flatMap(valid => ZIO.cond(valid, (), KufuliError.SignatureMismatch("Signature verification failed")))

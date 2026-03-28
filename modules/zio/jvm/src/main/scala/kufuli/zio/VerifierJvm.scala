@@ -79,7 +79,7 @@ private def hmacVerify(key: SecretKey, data: Array[Byte], signature: Array[Byte]
     }
     .mapError(_ => KufuliError.VerificationFailure("HMAC computation failed"))
     .flatMap { computed =>
-      ZIO.cond(ConstantTime.equals(computed, signature), (), KufuliError.InvalidSignature("HMAC mismatch"))
+      ZIO.cond(ConstantTime.equals(computed, signature), (), KufuliError.SignatureMismatch("HMAC mismatch"))
     }
 
 private def jcaVerify(key: PublicKey, data: Array[Byte], signature: Array[Byte], alg: SignAlgorithm): IO[KufuliError, Unit] =
@@ -91,7 +91,7 @@ private def jcaVerify(key: PublicKey, data: Array[Byte], signature: Array[Byte],
       sig.update(data)
       sig.verify(signature)
     }
-    .mapError(_ => KufuliError.InvalidSignature("Signature verification failed"))
+    .mapError(_ => KufuliError.VerificationFailure("JCA signature verification threw"))
     .flatMap { valid =>
-      ZIO.cond(valid, (), KufuliError.InvalidSignature("Signature verification failed"))
+      ZIO.cond(valid, (), KufuliError.SignatureMismatch("Signature verification failed"))
     }
