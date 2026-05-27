@@ -217,4 +217,5 @@ Platform `given` instances are resolved automatically via `import kufuli.zio.giv
 
 ## Licence
 
-MIT
+MIT. Third-party components vendored as git submodules under `vendor/` retain their original
+licences and are acknowledged in [`NOTICE`](NOTICE).

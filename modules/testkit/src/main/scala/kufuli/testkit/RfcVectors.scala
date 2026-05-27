@@ -34,10 +34,6 @@ import java.util.Base64
   */
 object RfcVectors:
 
-  // ---------------------------------------------------------------------------
-  // RFC 7515 Appendix A.1 - HMAC SHA-256 test vector
-  // ---------------------------------------------------------------------------
-
   /** HMAC-SHA256 symmetric key from RFC 7515 A.1 (JWK "k" field, Base64URL-decoded). 64 bytes (512
     * bits).
     */
@@ -60,10 +56,6 @@ object RfcVectors:
     116, 24, -33, -76, -105, -103, -32, 37, 79, -6, 96, 125, -40, -83, -69, -70, 22, -44, 37, 77, 105, -42, -65, -16, 91, 88, 5, 88, 83,
     -124, -115, 121
   )
-
-  // ---------------------------------------------------------------------------
-  // RFC 7515 Appendix A.2 - RSASSA-PKCS1-v1_5 SHA-256 test vector
-  // ---------------------------------------------------------------------------
 
   /** JWS Signing Input from RFC 7515 A.2 - ASCII octets of `BASE64URL(header).BASE64URL(payload)`
     * with `{"alg":"RS256"}` header.
@@ -137,10 +129,6 @@ object RfcVectors:
     -62, 85, 102, -75, 90, -63, -89, 72, -96, 112, -33, -56, -93, 42, 70, -107, 67, -48, 25, -18, -5, 71
   )
 
-  // ---------------------------------------------------------------------------
-  // RFC 7515 Appendix A.3 - ECDSA P-256 SHA-256 test vector
-  // ---------------------------------------------------------------------------
-
   /** JWS Signing Input from RFC 7515 A.3 - ASCII octets with `{"alg":"ES256"}` header. */
   val ecdsaP256SigningInput: Array[Byte] = Array[Byte](
     101, 121, 74, 104, 98, 71, 99, 105, 79, 105, 74, 70, 85, 122, 73, 49, 78, 105, 74, 57, 46, 101, 121, 74, 112, 99, 51, 77, 105, 79, 105,
@@ -167,16 +155,57 @@ object RfcVectors:
     -118, -125, -93, 84, -43
   )
 
-  // ---------------------------------------------------------------------------
-  // SHA digest known-answer test vectors (NIST FIPS 180-4)
-  // ---------------------------------------------------------------------------
+  /** EC P-384 public key x coordinate from RFC 6979 (August 2013) ss A.2.6. */
+  val ecP384X: Array[Byte] = hexToBytes(
+    "EC3A4E415B4E19A4568618029F427FA5DA9A8BC4AE92E02E06AAE5286B300C64DEF8F0EA9055866064A254515480BC13"
+  )
 
-  /** SHA-1 of empty string. */
+  /** EC P-384 public key y coordinate from RFC 6979 (August 2013) ss A.2.6. */
+  val ecP384Y: Array[Byte] = hexToBytes(
+    "8015D9B72D7D57244EA8EF9AC0C621896708A59367F9DFB9F54CA84B3F1C9DB1288B231C3AE0D4FE7344FD2533264720"
+  )
+
+  /** EC P-384 private key scalar d from RFC 6979 (August 2013) ss A.2.6. */
+  val ecP384D: Array[Byte] = hexToBytes(
+    "6B9D3DAD2E1B8C1C05B19875B6659F4DE23C3B667BF297BA9AA47740787137D896D5724E4C70A825F872C9EA60D2EDF5"
+  )
+
+  /** EC P-521 public key x coordinate from RFC 6979 (August 2013) ss A.2.7. 66 bytes with leading
+    * zero padding since the curve is 521 bits.
+    */
+  val ecP521X: Array[Byte] = hexToBytes(
+    "01894550D0785932E00EAA23B694F213F8C3121F86DC97A04E5A7167DB4E5BCD371123D46E45DB6B5D5370A7F20FB633155D38FFA16D2BD761DCAC474B9A2F5023A4"
+  )
+
+  /** EC P-521 public key y coordinate from RFC 6979 (August 2013) ss A.2.7. */
+  val ecP521Y: Array[Byte] = hexToBytes(
+    "00493101C962CD4D2FDDF782285E64584139C2F91B47F87FF82354D6630F746A28A0DB25741B5B34A828008B22ACC23F924FAAFBD4D33F81EA66956DFEAA2BFDFCF5"
+  )
+
+  /** EC P-521 private key scalar d from RFC 6979 (August 2013) ss A.2.7. */
+  val ecP521D: Array[Byte] = hexToBytes(
+    "00FAD06DAA62BA3B25D2FB40133DA757205DE67F5BB0018FEE8C86E1B68C7E75CAA896EB32F1F47C70855836A6D16FCC1466F6D8FBEC67DB89EC0C08B0E996B83538"
+  )
+
+  /** Ed25519 public key from RFC 8032 (January 2017) ss7.1 TEST 1. 32 bytes. */
+  val ed25519PublicKey: Array[Byte] = hexToBytes(
+    "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+  )
+
+  /** Ed25519 32-byte private seed from RFC 8032 (January 2017) ss7.1 TEST 1. */
+  val ed25519Seed: Array[Byte] = hexToBytes(
+    "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
+  )
+
+  /** Ed25519 signature on empty message under the TEST 1 key from RFC 8032 (January 2017) ss7.1.
+    * EdDSA is deterministic so the byte output is reproducible.
+    */
+  val ed25519EmptySignature: Array[Byte] = hexToBytes(
+    "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"
+  )
+
+  /** SHA-1 of empty string per NIST FIPS 180-4 (August 2015). */
   val sha1EmptyDigest: Array[Byte] = hexToBytes("da39a3ee5e6b4b0d3255bfef95601890afd80709")
-
-  // ---------------------------------------------------------------------------
-  // SHA-2 known-answer test vectors (NIST FIPS 180-4)
-  // ---------------------------------------------------------------------------
 
   /** SHA-256 of empty string. */
   val sha256EmptyDigest: Array[Byte] = hexToBytes("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")

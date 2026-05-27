@@ -20,34 +20,23 @@
  */
 package kufuli.tests
 
-import zio.Runtime
-import zio.Unsafe
 import zio.ZIO
 
 import com.github.plokhotnyuk.jsoniter_scala.core.JsonValueCodec
 import com.github.plokhotnyuk.jsoniter_scala.core.readFromString
 import com.github.plokhotnyuk.jsoniter_scala.macros.JsonCodecMaker
-import munit.FunSuite
 
 import kufuli.CryptoKey
 import kufuli.EcCurve
-import kufuli.KufuliError
 import kufuli.SignAlgorithm
 import kufuli.Signature
 import kufuli.testkit.HexCodec
 import kufuli.zio.given
 
-/** Wycheproof ECDSA P1363 (R||S) format test vectors. Cross-platform.
-  *
-  * Tests [[kufuli.Signature$.ecdsaConcat]] construction path directly, exercising R||S validation
-  * per NIST FIPS 186-5 (February 2023) without DER transcoding.
+/** Wycheproof ECDSA P1363 (R||S) format test vectors. Exercises [[kufuli.Signature$.ecdsaConcat]]
+  * R||S validation per NIST FIPS 186-5 (February 2023) without the DER transcoding path.
   */
-class WycheproofEcdsaP1363Suite extends FunSuite:
-
-  private def tryRun[A](zio: ZIO[Any, KufuliError, A]): Either[KufuliError, A] =
-    Unsafe.unsafe { u ?=>
-      Runtime.default.unsafe.run(zio.either).getOrThrowFiberFailure()
-    }
+class WycheproofEcdsaP1363Suite extends AsyncCryptoSuite:
 
   private case class WpSuite(numberOfTests: Int, testGroups: List[WpGroup])
   private case class WpGroup(publicKey: WpPubKey, sha: String, tests: List[WpVector])
@@ -67,62 +56,72 @@ class WycheproofEcdsaP1363Suite extends FunSuite:
     case EcCurve.P384 => SignAlgorithm.EcdsaP384Sha384
     case EcCurve.P521 => SignAlgorithm.EcdsaP521Sha512
 
-  private def runVectors(json: String): Unit =
+  private def runVectors(json: String) =
     val suite = readFromString[WpSuite](json)
-    // scalafix:off DisableSyntax.var; test counters
-    var passed = 0
-    var failed = 0
-    // scalafix:on
 
-    suite.testGroups.foreach { group =>
-      val curve = curveFromName(group.publicKey.curve)
-      val algorithm = algorithmForCurve(curve)
-      val keyResult = CryptoKey.ecPublic(curve, HexCodec.decode(group.publicKey.wx), HexCodec.decode(group.publicKey.wy))
-
-      group.tests.foreach { tv =>
-        val sigBytes = HexCodec.decode(tv.sig)
-        val msg = HexCodec.decode(tv.msg)
-
-        tv.result match
-          case "valid" =>
-            val sigResult = Signature.ecdsaConcat(sigBytes, curve)
-            keyResult match
-              case Right(pubKey) =>
-                sigResult match
-                  case Right(sig) =>
-                    val r = tryRun(pubKey.prepareVerifying(algorithm).flatMap(_.verify(msg, sig)))
-                    if r.isRight then passed += 1
-                    else
-                      failed += 1; fail(s"tcId=${tv.tcId}: valid P1363 vector failed: ${tv.comment}")
-                  case Left(err) =>
-                    failed += 1; fail(s"tcId=${tv.tcId}: valid P1363 vector R||S validation failed: $err")
-              case Left(_) => ()
-
-          case "invalid" =>
-            val sigResult = Signature.ecdsaConcat(sigBytes, curve)
-            (keyResult, sigResult) match
-              case (Left(_), _)                => passed += 1
-              case (_, Left(_))                => passed += 1
-              case (Right(pubKey), Right(sig)) =>
-                val r = tryRun(pubKey.prepareVerifying(algorithm).flatMap(_.verify(msg, sig)))
-                if r.isLeft then passed += 1
-                else
-                  failed += 1; fail(s"tcId=${tv.tcId}: invalid P1363 vector accepted: ${tv.comment}")
-
-          case "acceptable" =>
-            (keyResult, Signature.ecdsaConcat(sigBytes, curve)) match
-              case (Right(pubKey), Right(sig)) =>
-                val _ = tryRun(pubKey.prepareVerifying(algorithm).flatMap(_.verify(msg, sig))): Unit
-              case _ => ()
-            passed += 1
-
-          case _ => ()
-        end match
+    val checks: List[ZIO[Any, Nothing, Option[String]]] =
+      suite.testGroups.flatMap { group =>
+        val curve = curveFromName(group.publicKey.curve)
+        val algorithm = algorithmForCurve(curve)
+        val keyResult = CryptoKey.ecPublic(curve, HexCodec.decode(group.publicKey.wx), HexCodec.decode(group.publicKey.wy))
+        group.tests.map { tv =>
+          checkVector(algorithm, curve, keyResult, tv, HexCodec.decode(tv.msg), HexCodec.decode(tv.sig))
+        }
       }
+
+    runIo(ZIO.foreach(checks)(identity)).map { results =>
+      val failures = results.flatten
+      assert(failures.isEmpty, s"${failures.size} Wycheproof P1363 vectors failed:\n${failures.mkString("\n")}")
+      assert(results.nonEmpty, "No vectors processed")
     }
-    assert(failed == 0, s"$failed Wycheproof P1363 vectors failed")
-    assert(passed > 0, "No vectors passed")
   end runVectors
+
+  private def checkVector(
+    algorithm: SignAlgorithm,
+    curve: EcCurve,
+    keyResult: Either[kufuli.KufuliError, CryptoKey],
+    tv: WpVector,
+    msg: Array[Byte],
+    sigBytes: Array[Byte]
+  ): ZIO[Any, Nothing, Option[String]] =
+    tv.result match
+      case "valid" =>
+        (keyResult, Signature.ecdsaConcat(sigBytes, curve)) match
+          case (Right(pubKey), Right(sig)) =>
+            pubKey
+              .prepareVerifying(algorithm)
+              .flatMap(_.verify(msg, sig))
+              .as(Option.empty[String])
+              .catchAll(e => ZIO.succeed(Some(s"tcId=${tv.tcId}: valid P1363 vector failed: ${tv.comment} (${e.getMessage})")))
+          case (Left(err), _) =>
+            ZIO.succeed(Some(s"tcId=${tv.tcId}: valid P1363 vector key construction failed: ${err.getMessage}"))
+          case (_, Left(rsErr)) =>
+            ZIO.succeed(Some(s"tcId=${tv.tcId}: valid P1363 R||S validation failed: ${rsErr.getMessage}"))
+
+      case "invalid" =>
+        (keyResult, Signature.ecdsaConcat(sigBytes, curve)) match
+          case (Left(_), _)                => ZIO.succeed(None)
+          case (_, Left(_))                => ZIO.succeed(None)
+          case (Right(pubKey), Right(sig)) =>
+            pubKey
+              .prepareVerifying(algorithm)
+              .flatMap(_.verify(msg, sig))
+              .as(Some(s"tcId=${tv.tcId}: invalid P1363 vector accepted: ${tv.comment}"))
+              .catchAll(_ => ZIO.succeed(None))
+
+      case "acceptable" =>
+        (keyResult, Signature.ecdsaConcat(sigBytes, curve)) match
+          case (Right(pubKey), Right(sig)) =>
+            pubKey
+              .prepareVerifying(algorithm)
+              .flatMap(_.verify(msg, sig))
+              .as(Option.empty[String])
+              .catchAll(_ => ZIO.succeed(None))
+          case _ => ZIO.succeed(None)
+
+      case _ => ZIO.succeed(None)
+    end match
+  end checkVector
 
   test("Wycheproof ECDSA P-256 SHA-256 P1363 vectors"):
     runVectors(kufuli.tests.wycheproof.EcdsaSecp256r1Sha256P1363TestJson.json)

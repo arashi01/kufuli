@@ -47,7 +47,7 @@ given Verifier with
       PreparedKey.unwrapKey[Verifying](key) match
         case nk: NativePreparedKey =>
           val alg = nk.signAlgorithm
-          ZIO.fromEither(SecurityChecks.preVerify(alg, sigBytes)).flatMap { _ =>
+          ZIO.fromEither(SecurityChecks.preVerify(alg, sigBytes, nk.rsaModulus)).flatMap { _ =>
             // ECDSA: transcode R||S to DER for OpenSSL
             val sigEffect = alg.ecCurve match
               case Some(_) => ZIO.fromEither(EcdsaCodec.concatToDer(sigBytes))

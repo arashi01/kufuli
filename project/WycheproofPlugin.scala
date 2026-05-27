@@ -2,7 +2,7 @@ import sbt.*
 import sbt.Keys.*
 
 /** Embeds Wycheproof JSON test vector files as string constants in generated Scala source, enabling
-  * cross-platform (JVM, JS, Native) test vector consumption without `getResourceAsStream`.
+  * cross-platform (JVM, JS, Native) test vector consumption.
   *
   * Enable on a project, then configure:
   * {{{
@@ -13,7 +13,8 @@ import sbt.Keys.*
   * )
   * }}}
   *
-  * The Wycheproof repository is automatically cloned on first build via [[ExternalSources]]. For
+  * Vectors are read from the `vendor/wycheproof` git submodule. Contributors must initialise it
+  * once with `git submodule update --init vendor/wycheproof` (or clone with `--recursive`). For
   * each listed `.json` file, generates a Scala object containing the raw JSON as a string constant.
   * Suites parse this at runtime via jsoniter-scala `readFromString`.
   */
@@ -49,12 +50,14 @@ object WycheproofPlugin extends AutoPlugin {
         val log = streams.value.log
         val cacheDir = streams.value.cacheDirectory / "wycheproof"
         val rootDir = (LocalRootProject / baseDirectory).value
+        val vectorDir = rootDir / "vendor" / "wycheproof" / "testvectors_v1"
 
         if (files.isEmpty) Seq.empty[File]
         else {
-          // Resolve Wycheproof checkout (clones on first build)
-          val repoDir = ExternalSources.resolve(ExternalSources.wycheproof, rootDir, log)
-          val vectorDir = repoDir / "testvectors_v1"
+          if (!vectorDir.isDirectory)
+            sys.error(
+              s"Wycheproof submodule not initialised at $vectorDir. Run: git submodule update --init vendor/wycheproof"
+            )
 
           IO.createDirectory(outDir)
           files.map { filename =>

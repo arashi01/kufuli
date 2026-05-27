@@ -30,18 +30,7 @@ package kufuli
   */
 opaque type Digest = Array[Byte]
 
-/** Smart constructors and timing-safe comparison for [[Digest]].
-  *
-  * Does not extend [[boilerplate.OpaqueType OpaqueType]] because the smart constructor
-  * ([[Digest$.from from]]) requires an additional [[DigestAlgorithm]] parameter for length
-  * validation, which cannot be expressed via `OpaqueType.from(value: Repr)`. Additionally,
-  * `OpaqueType.wrap` is public and would bypass defensive cloning, and `OpaqueType.unwrap` would
-  * expose the internal array without cloning.
-  *
-  * `CanEqual` is intentionally omitted: array-backed `==` is reference equality, producing silently
-  * wrong results. Under strict equality this is a compile error, forcing use of
-  * [[Digest$.constantTimeEquals]].
-  */
+/** Smart constructors and timing-safe comparison for [[Digest]]. */
 object Digest:
 
   /** Constructs a Digest from known bytes, validating length matches the given algorithm output. */

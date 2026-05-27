@@ -20,6 +20,8 @@
  */
 package kufuli.tests
 
+import scala.concurrent.Future
+
 import zio.Runtime
 import zio.Unsafe
 import zio.ZIO
@@ -33,27 +35,28 @@ import kufuli.Signature
 import kufuli.testkit.CryptoTestSuite
 import kufuli.zio.given
 
-class NativeCryptoTestSuite extends CryptoTestSuite:
+/** Cross-platform crypto test suite. The same class is compiled for JVM, JS Node.js, Scala Native,
+  * and JS Browser - each picks up its platform's `given` backend instances via standard given
+  * resolution. ZIO programs execute via [[zio.Runtime.unsafe.runToFuture]], the only path that
+  * works on every target including SubtleCrypto in browsers.
+  */
+class ZioCryptoTestSuite extends CryptoTestSuite:
 
-  private def run[A](zio: ZIO[Any, KufuliError, A]): A =
+  private def run[A](zio: ZIO[Any, KufuliError, A]): Future[A] =
     Unsafe.unsafe { u ?=>
-      Runtime.default.unsafe.run(zio).getOrThrowFiberFailure()
+      Runtime.default.unsafe.runToFuture(zio)
     }
 
-  def prepareAndSign(key: CryptoKey, algorithm: SignAlgorithm, data: Array[Byte]): Signature =
+  def prepareAndSign(key: CryptoKey, algorithm: SignAlgorithm, data: Array[Byte]): Future[Signature] =
     run(key.prepareSigning(algorithm).flatMap(_.sign(data)))
 
-  def prepareAndVerify(key: CryptoKey, algorithm: SignAlgorithm, data: Array[Byte], signature: Signature): Unit =
+  def prepareAndVerify(key: CryptoKey, algorithm: SignAlgorithm, data: Array[Byte], signature: Signature): Future[Unit] =
     run(key.prepareVerifying(algorithm).flatMap(_.verify(data, signature)))
 
-  def computeDigest(data: Array[Byte], algorithm: DigestAlgorithm): Digest =
+  def computeDigest(data: Array[Byte], algorithm: DigestAlgorithm): Future[Digest] =
     run(data.digest(algorithm))
 
-  def prepareSigningError(key: CryptoKey, algorithm: SignAlgorithm): Option[KufuliError] =
-    Unsafe.unsafe { u ?=>
-      Runtime.default.unsafe.run(key.prepareSigning(algorithm)) match
-        case zio.Exit.Failure(cause) => cause.failureOption
-        case zio.Exit.Success(_)     => None
-    }
+  def prepareSigningError(key: CryptoKey, algorithm: SignAlgorithm): Future[Option[KufuliError]] =
+    run(key.prepareSigning(algorithm).either.map(_.left.toOption))
 
-end NativeCryptoTestSuite
+end ZioCryptoTestSuite

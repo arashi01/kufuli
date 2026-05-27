@@ -20,30 +20,23 @@
  */
 package kufuli.tests
 
-import zio.Runtime
-import zio.Unsafe
 import zio.ZIO
 
 import com.github.plokhotnyuk.jsoniter_scala.core.JsonValueCodec
 import com.github.plokhotnyuk.jsoniter_scala.core.readFromString
 import com.github.plokhotnyuk.jsoniter_scala.macros.JsonCodecMaker
-import munit.FunSuite
 
 import kufuli.CryptoKey
-import kufuli.KufuliError
 import kufuli.OkpCurve
 import kufuli.SignAlgorithm
 import kufuli.Signature
 import kufuli.testkit.HexCodec
 import kufuli.zio.given
 
-/** Wycheproof Ed25519 test vectors per RFC 8032 (January 2017). Cross-platform. */
-class WycheproofEd25519Suite extends FunSuite:
-
-  private def tryRun[A](zio: ZIO[Any, KufuliError, A]): Either[KufuliError, A] =
-    Unsafe.unsafe { u ?=>
-      Runtime.default.unsafe.run(zio.either).getOrThrowFiberFailure()
-    }
+/** Wycheproof Ed25519 test vectors per RFC 8032 (January 2017). Skipped on platforms whose Native
+  * crypto backend does not expose EdDSA (Security.framework on macOS, BCrypt on Windows).
+  */
+class WycheproofEd25519Suite extends AsyncCryptoSuite:
 
   private case class WpSuite(numberOfTests: Int, testGroups: List[WpGroup])
   private case class WpGroup(publicKey: WpPubKey, tests: List[WpVector])
@@ -53,51 +46,64 @@ class WycheproofEd25519Suite extends FunSuite:
   private given JsonValueCodec[WpSuite] = JsonCodecMaker.make
 
   test("Wycheproof Ed25519 vectors"):
+    assume(PlatformAlgorithms.supports(SignAlgorithm.Ed25519), "Ed25519 not supported on this platform")
+
     val suite = readFromString[WpSuite](kufuli.tests.wycheproof.Ed25519TestJson.json)
-    // scalafix:off DisableSyntax.var; test counters
-    var passed = 0
-    var failed = 0
-    // scalafix:on
 
-    suite.testGroups.foreach { group =>
-      val keyResult = CryptoKey.okpPublic(OkpCurve.Ed25519, HexCodec.decode(group.publicKey.pk))
-
-      group.tests.foreach { tv =>
-        val sigBytes = HexCodec.decode(tv.sig)
-        val msg = HexCodec.decode(tv.msg)
-
-        tv.result match
-          case "valid" =>
-            keyResult match
-              case Right(pubKey) =>
-                val r = tryRun(pubKey.prepareVerifying(SignAlgorithm.Ed25519).flatMap(_.verify(msg, Signature.raw(sigBytes))))
-                if r.isRight then passed += 1
-                else
-                  failed += 1; fail(s"tcId=${tv.tcId}: valid vector failed: ${tv.comment}")
-              case Left(err) =>
-                failed += 1; fail(s"tcId=${tv.tcId}: valid vector key construction failed: $err")
-
-          case "invalid" =>
-            keyResult match
-              case Left(_)       => passed += 1
-              case Right(pubKey) =>
-                val r = tryRun(pubKey.prepareVerifying(SignAlgorithm.Ed25519).flatMap(_.verify(msg, Signature.raw(sigBytes))))
-                if r.isLeft then passed += 1
-                else
-                  failed += 1; fail(s"tcId=${tv.tcId}: invalid vector accepted: ${tv.comment}")
-
-          case "acceptable" =>
-            keyResult match
-              case Right(pubKey) =>
-                val _ = tryRun(pubKey.prepareVerifying(SignAlgorithm.Ed25519).flatMap(_.verify(msg, Signature.raw(sigBytes)))): Unit
-              case _ => ()
-            passed += 1
-
-          case _ => ()
-        end match
+    val checks: List[ZIO[Any, Nothing, Option[String]]] =
+      suite.testGroups.flatMap { group =>
+        val keyResult = CryptoKey.okpPublic(OkpCurve.Ed25519, HexCodec.decode(group.publicKey.pk))
+        group.tests.map { tv =>
+          checkVector(keyResult, tv, HexCodec.decode(tv.msg), HexCodec.decode(tv.sig))
+        }
       }
+
+    runIo(ZIO.foreach(checks)(identity)).map { results =>
+      val failures = results.flatten
+      assert(failures.isEmpty, s"${failures.size} Wycheproof Ed25519 vectors failed:\n${failures.mkString("\n")}")
+      assert(results.nonEmpty, "No vectors processed")
     }
-    assert(failed == 0, s"$failed Wycheproof Ed25519 vectors failed")
-    assert(passed > 0, "No vectors passed")
+
+  private def checkVector(
+    keyResult: Either[kufuli.KufuliError, CryptoKey],
+    tv: WpVector,
+    msg: Array[Byte],
+    sigBytes: Array[Byte]
+  ): ZIO[Any, Nothing, Option[String]] =
+    tv.result match
+      case "valid" =>
+        keyResult match
+          case Right(pubKey) =>
+            pubKey
+              .prepareVerifying(SignAlgorithm.Ed25519)
+              .flatMap(_.verify(msg, Signature.raw(sigBytes)))
+              .as(Option.empty[String])
+              .catchAll(e => ZIO.succeed(Some(s"tcId=${tv.tcId}: valid vector failed: ${tv.comment} (${e.getMessage})")))
+          case Left(err) =>
+            ZIO.succeed(Some(s"tcId=${tv.tcId}: valid vector key construction failed: ${err.getMessage}"))
+
+      case "invalid" =>
+        keyResult match
+          case Left(_)       => ZIO.succeed(None)
+          case Right(pubKey) =>
+            pubKey
+              .prepareVerifying(SignAlgorithm.Ed25519)
+              .flatMap(_.verify(msg, Signature.raw(sigBytes)))
+              .as(Some(s"tcId=${tv.tcId}: invalid vector accepted: ${tv.comment}"))
+              .catchAll(_ => ZIO.succeed(None))
+
+      case "acceptable" =>
+        keyResult match
+          case Right(pubKey) =>
+            pubKey
+              .prepareVerifying(SignAlgorithm.Ed25519)
+              .flatMap(_.verify(msg, Signature.raw(sigBytes)))
+              .as(Option.empty[String])
+              .catchAll(_ => ZIO.succeed(None))
+          case _ => ZIO.succeed(None)
+
+      case _ => ZIO.succeed(None)
+    end match
+  end checkVector
 
 end WycheproofEd25519Suite

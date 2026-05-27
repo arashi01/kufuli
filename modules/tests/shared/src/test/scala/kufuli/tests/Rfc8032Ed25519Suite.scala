@@ -20,39 +20,26 @@
  */
 package kufuli.tests
 
-import zio.Runtime
-import zio.Unsafe
-import zio.ZIO
-
-import munit.FunSuite
-
 import kufuli.CryptoKey
-import kufuli.KufuliError
 import kufuli.OkpCurve
 import kufuli.SignAlgorithm
 import kufuli.Signature
 import kufuli.testkit.HexCodec
 import kufuli.zio.given
 
-/** RFC 8032 (January 2017) ss7.1 Ed25519 known-answer verification vectors. Cross-platform.
-  *
-  * All 5 test vectors from the specification: empty message, 1-byte, 2-byte, 1023-byte, and
-  * SHA(abc) 64-byte pre-hashed input.
+/** RFC 8032 (January 2017) ss7.1 Ed25519 known-answer verification vectors. All 5 test vectors from
+  * the specification: empty message, 1-byte, 2-byte, 1023-byte, and SHA(abc) 64-byte pre-hashed
+  * input.
   */
-class Rfc8032Ed25519Suite extends FunSuite:
+class Rfc8032Ed25519Suite extends AsyncCryptoSuite:
 
-  private def run[A](zio: ZIO[Any, KufuliError, A]): A =
-    Unsafe.unsafe { u ?=>
-      Runtime.default.unsafe.run(zio).getOrThrowFiberFailure()
-    }
-
-  private def verifyVector(pkHex: String, msgHex: String, sigHex: String): Unit =
+  private def verifyVector(pkHex: String, msgHex: String, sigHex: String) =
+    assume(PlatformAlgorithms.supports(SignAlgorithm.Ed25519), "Ed25519 not supported on this platform")
     val pk = CryptoKey.okpPublic(OkpCurve.Ed25519, HexCodec.decode(pkHex)).toOption.get
     val msg = HexCodec.decode(msgHex)
     val sig = Signature.raw(HexCodec.decode(sigHex))
-    run(pk.prepareVerifying(SignAlgorithm.Ed25519).flatMap(_.verify(msg, sig)))
+    runIo(pk.prepareVerifying(SignAlgorithm.Ed25519).flatMap(_.verify(msg, sig)))
 
-  // TEST 1: empty message
   test("RFC 8032 ss7.1 TEST 1: empty message"):
     verifyVector(
       "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
@@ -60,7 +47,6 @@ class Rfc8032Ed25519Suite extends FunSuite:
       "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"
     )
 
-  // TEST 2: 1-byte message (0x72)
   test("RFC 8032 ss7.1 TEST 2: 1-byte message"):
     verifyVector(
       "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
@@ -68,7 +54,6 @@ class Rfc8032Ed25519Suite extends FunSuite:
       "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00"
     )
 
-  // TEST 3: 2-byte message (0xaf82)
   test("RFC 8032 ss7.1 TEST 3: 2-byte message"):
     verifyVector(
       "fc51cd8e6218a1a38da47ed00230f0580816ed13ba3303ac5deb911548908025",
@@ -76,7 +61,6 @@ class Rfc8032Ed25519Suite extends FunSuite:
       "6291d657deec24024827e69c3abe01a30ce548a284743a445e3680d7db5ac3ac18ff9b538d16f290ae67f760984dc6594a7c15e9716ed28dc027beceea1ec40a"
     )
 
-  // TEST 1024: 1023-byte message
   test("RFC 8032 ss7.1 TEST 1024: 1023-byte message"):
     verifyVector(
       "278117fc144c72340f67d0f2316e8386ceffbf2b2428c9c51fef7c597f1d426e",
@@ -115,7 +99,6 @@ class Rfc8032Ed25519Suite extends FunSuite:
       "0aab4c900501b3e24d7cdf4663326a3a87df5e4843b2cbdb67cbf6e460fec350aa5371b1508f9f4528ecea23c436d94b5e8fcd4f681e30a6ac00a9704a188a03"
     )
 
-  // TEST SHA(abc): 64-byte message (SHA-512 of "abc")
   test("RFC 8032 ss7.1 TEST SHA(abc): 64-byte message"):
     verifyVector(
       "ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf",

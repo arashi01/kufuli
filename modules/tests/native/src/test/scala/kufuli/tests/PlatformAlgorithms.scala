@@ -18,14 +18,19 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-package kufuli.jvm.internal
+package kufuli.tests
+
+import boilerplate.Platform
 
 import kufuli.SignAlgorithm
-import kufuli.zio.SigningKeyInternal
 
-/** JVM-specific prepared signing key wrapping a JCA key object and its bound algorithm. */
-final private[kufuli] class JvmPreparedKey(
-  val jcaKey: java.security.Key,
-  val signAlgorithm: SignAlgorithm,
-  val rsaModulus: Option[Array[Byte]]
-) extends SigningKeyInternal
+/** Scala Native: EdDSA support is OS-conditional. OpenSSL (Linux) implements Ed25519 and Ed448
+  * since 1.1.1, while Security.framework on macOS and BCrypt on Windows do not expose EdDSA
+  * primitives at all. Branches on [[boilerplate.Platform]] reduce to a compile-time constant
+  * because exactly one OS source directory is selected when the toolchain links the binary.
+  */
+object PlatformAlgorithms:
+
+  def supports(alg: SignAlgorithm): Boolean = alg match
+    case SignAlgorithm.Ed25519 | SignAlgorithm.Ed448 => Platform.linux
+    case _                                           => true

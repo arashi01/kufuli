@@ -1,0 +1,30 @@
+kufuli
+Copyright 2026 Ali Rashid.
+
+=========================================================================
+Third-party software acknowledgements
+=========================================================================
+
+This project includes software developed by third parties.
+
+Wycheproof (test scope only)
+  Copyright Google LLC and Wycheproof contributors.
+  Licensed under the Apache License, Version 2.0.
+  Pinned commit: 45d916899992c5e42dba75106104ca8ce7ff8370
+  Used at test time as a source of cryptographic vectors only; no Wycheproof
+  source code is distributed in any kufuli published artefact. See
+  vendor/wycheproof/LICENSE for the full licence text.
+  https://github.com/C2SP/wycheproof
+
+PHC Argon2 reference C implementation (Native backend, statically linked, kufuli v0.3.0+)
+  Copyright the Argon2 authors.
+  Dual-licensed under your choice of:
+    - Creative Commons CC0 1.0 Universal
+      https://creativecommons.org/publicdomain/zero/1.0/
+    - Apache License, Version 2.0
+      https://www.apache.org/licenses/LICENSE-2.0
+  Pinned commit: 62358ba2123abd17fccf2a108a301d4b52c01a7c
+  The Argon2 source is statically linked into kufuli's Native artefact when
+  password hashing is enabled. The source is not modified by this project.
+  See vendor/phc-winner-argon2/LICENSE for the full licence text.
+  https://github.com/P-H-C/phc-winner-argon2

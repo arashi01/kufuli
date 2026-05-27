@@ -49,5 +49,10 @@ private def prepareNative(key: CryptoKey, alg: SignAlgorithm): IO[KufuliError, N
   ZIO.fromEither(SecurityChecks.prePrepare(key, alg)).map { _ =>
     val keyBytes = DerCodec.encode(key)
     val algId = NativeAlgorithmId.fromSign(alg)
-    NativePreparedKey(keyBytes, algId, alg)
+    NativePreparedKey(keyBytes, algId, alg, rsaModulusOf(key))
   }
+
+private def rsaModulusOf(key: CryptoKey): Option[Array[Byte]] = key match
+  case CryptoKey.RsaPublic(modulus, _)                    => Some(modulus.clone())
+  case CryptoKey.RsaPrivate(modulus, _, _, _, _, _, _, _) => Some(modulus.clone())
+  case _                                                  => None

@@ -56,7 +56,10 @@ enum CryptoKey:
   private[kufuli] case OkpPrivate(curve: OkpCurve, x: Array[Byte], d: Array[Byte])
 end CryptoKey
 
-/** Smart constructors for [[CryptoKey]], providing Phase 1 security validation. */
+/** Smart constructors and introspection extensions for [[CryptoKey]]. Every factory runs the
+  * algorithm-specific security validation (RSA key size, EC point-on-curve, EC private scalar
+  * range, OKP key length) and returns the error as a typed value rather than throwing.
+  */
 object CryptoKey:
 
   def symmetric(bytes: Array[Byte]): Either[KufuliError, CryptoKey] =

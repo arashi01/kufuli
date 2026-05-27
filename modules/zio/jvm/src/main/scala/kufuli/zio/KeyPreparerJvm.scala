@@ -67,10 +67,15 @@ private def prepare(key: CryptoKey, alg: SignAlgorithm): IO[KufuliError, JvmPrep
     ZIO
       .attempt {
         val jcaKey = toJcaKey(key, alg)
-        JvmPreparedKey(jcaKey, alg)
+        JvmPreparedKey(jcaKey, alg, rsaModulusOf(key))
       }
       .mapError(_ => KufuliError.InvalidKey("JCA key construction failed"))
   }
+
+private def rsaModulusOf(key: CryptoKey): Option[Array[Byte]] = key match
+  case CryptoKey.RsaPublic(modulus, _)                    => Some(modulus.clone())
+  case CryptoKey.RsaPrivate(modulus, _, _, _, _, _, _, _) => Some(modulus.clone())
+  case _                                                  => None
 
 private def toJcaKey(key: CryptoKey, alg: SignAlgorithm): java.security.Key =
   key match

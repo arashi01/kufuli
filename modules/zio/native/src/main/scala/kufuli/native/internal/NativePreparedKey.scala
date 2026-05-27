@@ -31,5 +31,6 @@ import _root_.kufuli.zio.SigningKeyInternal
 final private[kufuli] class NativePreparedKey(
   val keyBytes: Array[Byte],
   val nativeAlgId: Int,
-  val signAlgorithm: SignAlgorithm
+  val signAlgorithm: SignAlgorithm,
+  val rsaModulus: Option[Array[Byte]]
 ) extends SigningKeyInternal

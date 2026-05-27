@@ -11,9 +11,13 @@
 
 ## First Build
 
-On a clean checkout, `sbt test` will automatically clone pinned external repositories to `.lib/`
-via the `ExternalSources` mechanism (`project/ExternalSources.scala`). This requires network
-access on the first build only. Subsequent builds reuse the cached checkouts.
+Vendored build-time dependencies (Wycheproof test vectors, PHC Argon2 reference C source) live
+as git submodules under `vendor/`. Either clone with `git clone --recursive`, or after a plain
+clone run:
+
+```
+git submodule update --init
+```
 
 ```
 sbt kufuli-jvm/test        # All JVM tests (core unit + integration)
@@ -36,8 +40,12 @@ modules/
   js-shared/         Shared JS utilities (Node.js + browser)
 
 project/
-  ExternalSources.scala   Git checkout management for build-time dependencies
   WycheproofPlugin.scala  Embeds Wycheproof JSON as generated Scala source
+  NativePlatformPlugin.scala  Host detection (OS, libc, static-link) for Native crypto linking
+
+vendor/                Git submodules for build-time dependencies
+  wycheproof/          Wycheproof test vectors (Apache-2.0)
+  phc-winner-argon2/   PHC Argon2 reference C source (CC0 1.0 / Apache-2.0)
 ```
 
 ## Test Structure
@@ -84,13 +92,24 @@ files should contain only the `run` adapter and abstract method implementations 
 - New test suites go in `shared/test/` (cross-platform) unless they test platform-specific
   behaviour that only exists on one platform.
 
-## External Sources
+## Vendor Submodules
 
-Build-time dependencies (Wycheproof vectors, Argon2 C source) are managed by
-`ExternalSources` in `project/ExternalSources.scala`. Repositories are pinned by exact commit
-SHA for reproducible builds. The `.lib/` directory is gitignored.
+Build-time dependencies live as git submodules under `vendor/`. The parent commit pins each
+submodule to an exact upstream SHA - reproducible without any imperative checkout step at build
+time. Third-party licences are acknowledged in the top-level `NOTICE`.
 
-To force a re-clone (e.g. after updating a SHA): `rm -rf .lib/<repo-name>`
+To update a pinned dependency:
+
+```
+cd vendor/<name>
+git fetch
+git checkout <new-sha>
+cd ../..
+git add vendor/<name>
+git commit -m "Bump <name> to <new-sha>"
+```
+
+Then update `NOTICE` to record the new SHA.
 
 ## Code Style
 

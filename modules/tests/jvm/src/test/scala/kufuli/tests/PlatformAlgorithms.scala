@@ -18,14 +18,10 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-package kufuli.jvm.internal
+package kufuli.tests
 
 import kufuli.SignAlgorithm
-import kufuli.zio.SigningKeyInternal
 
-/** JVM-specific prepared signing key wrapping a JCA key object and its bound algorithm. */
-final private[kufuli] class JvmPreparedKey(
-  val jcaKey: java.security.Key,
-  val signAlgorithm: SignAlgorithm,
-  val rsaModulus: Option[Array[Byte]]
-) extends SigningKeyInternal
+/** JVM/JCA: every [[kufuli.SignAlgorithm SignAlgorithm]] kufuli exposes is supported. */
+object PlatformAlgorithms:
+  inline def supports(alg: SignAlgorithm): Boolean = true

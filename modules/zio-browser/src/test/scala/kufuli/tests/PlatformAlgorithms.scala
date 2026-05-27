@@ -18,14 +18,16 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-package kufuli.jvm.internal
+package kufuli.tests
 
 import kufuli.SignAlgorithm
-import kufuli.zio.SigningKeyInternal
 
-/** JVM-specific prepared signing key wrapping a JCA key object and its bound algorithm. */
-final private[kufuli] class JvmPreparedKey(
-  val jcaKey: java.security.Key,
-  val signAlgorithm: SignAlgorithm,
-  val rsaModulus: Option[Array[Byte]]
-) extends SigningKeyInternal
+/** Web Crypto (SubtleCrypto): supports Ed25519 since W3C "Secure Curves in the Web Cryptography
+  * API" (April 2024) is implemented by current browsers, but Ed448 is not part of that
+  * recommendation and is unsupported.
+  */
+object PlatformAlgorithms:
+
+  inline def supports(alg: SignAlgorithm): Boolean = alg match
+    case SignAlgorithm.Ed448 => false
+    case _                   => true

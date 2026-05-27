@@ -26,8 +26,6 @@ import munit.FunSuite
 
 class SecurityChecksSpec extends FunSuite:
 
-  // -- Phase 1: RSA key size --
-
   test("validateRsaKeySize accepts 2048-bit modulus"):
     // A 2048-bit number has a byte array of 256 bytes with the high bit set
     val modulus = new Array[Byte](256)
@@ -44,8 +42,6 @@ class SecurityChecksSpec extends FunSuite:
     modulus(0) = 0x80.toByte
     assert(SecurityChecks.validateRsaKeySize(modulus).isRight)
 
-  // -- Phase 1: RSA CRT --
-
   test("validateRsaCrt accepts matching p * q == n"):
     val p = BigInteger.valueOf(61)
     val q = BigInteger.valueOf(53)
@@ -57,8 +53,6 @@ class SecurityChecksSpec extends FunSuite:
     val q = BigInteger.valueOf(53)
     val wrongN = BigInteger.valueOf(9999)
     assert(SecurityChecks.validateRsaCrt(wrongN.toByteArray, p.toByteArray, q.toByteArray).isLeft)
-
-  // -- Phase 1: Point on curve --
 
   // NIST P-256 generator point (FIPS 186-5 (February 2023), Section D.1.2.3)
   private val p256Gx: Array[Byte] =
@@ -76,8 +70,6 @@ class SecurityChecksSpec extends FunSuite:
     val y = Array[Byte](1)
     assert(SecurityChecks.validatePointOnCurve(EcCurve.P256, x, y).isLeft)
 
-  // -- Phase 1: OKP key length --
-
   test("validateOkpKeyLength accepts 32-byte Ed25519 key"):
     assert(SecurityChecks.validateOkpKeyLength(OkpCurve.Ed25519, new Array[Byte](32)).isRight)
 
@@ -92,8 +84,6 @@ class SecurityChecksSpec extends FunSuite:
 
   test("validateOkpKeyLength rejects wrong length X25519 key"):
     assert(SecurityChecks.validateOkpKeyLength(OkpCurve.X25519, new Array[Byte](16)).isLeft)
-
-  // -- Phase 2: prePrepare --
 
   test("prePrepare accepts HMAC key with sufficient size"):
     val key = CryptoKey.Symmetric(new Array[Byte](32))
@@ -129,34 +119,45 @@ class SecurityChecksSpec extends FunSuite:
     val key = CryptoKey.OkpPublic(OkpCurve.Ed25519, new Array[Byte](32))
     assert(SecurityChecks.prePrepare(key, SignAlgorithm.Ed448).isLeft)
 
-  // -- Phase 3: preVerify --
-
   test("preVerify delegates to EcParams for ECDSA"):
     // Valid signature for P-256: R=1, S=1
     val sig = new Array[Byte](64)
     sig(31) = 1; sig(63) = 1
-    assert(SecurityChecks.preVerify(SignAlgorithm.EcdsaP256Sha256, sig).isRight)
+    assert(SecurityChecks.preVerify(SignAlgorithm.EcdsaP256Sha256, sig, None).isRight)
 
   test("preVerify rejects invalid ECDSA signature"):
     val allZero = new Array[Byte](64)
-    assert(SecurityChecks.preVerify(SignAlgorithm.EcdsaP256Sha256, allZero).isLeft)
+    assert(SecurityChecks.preVerify(SignAlgorithm.EcdsaP256Sha256, allZero, None).isLeft)
 
   test("preVerify checks EdDSA signature length"):
     val validSig = new Array[Byte](64)
     validSig(0) = 1
-    assert(SecurityChecks.preVerify(SignAlgorithm.Ed25519, validSig).isRight)
+    assert(SecurityChecks.preVerify(SignAlgorithm.Ed25519, validSig, None).isRight)
 
   test("preVerify rejects wrong EdDSA signature length"):
     val wrongLen = new Array[Byte](32)
     wrongLen(0) = 1
-    assert(SecurityChecks.preVerify(SignAlgorithm.Ed25519, wrongLen).isLeft)
+    assert(SecurityChecks.preVerify(SignAlgorithm.Ed25519, wrongLen, None).isLeft)
 
   test("preVerify passes through for HMAC"):
-    assert(SecurityChecks.preVerify(SignAlgorithm.HmacSha256, Array[Byte](1, 2, 3)).isRight)
+    assert(SecurityChecks.preVerify(SignAlgorithm.HmacSha256, Array[Byte](1, 2, 3), None).isRight)
 
-  test("preVerify passes through for RSA"):
-    assert(SecurityChecks.preVerify(SignAlgorithm.RsaPkcs1Sha256, Array[Byte](1, 2, 3)).isRight)
-  // -- Signing direction validation --
+  test("preVerify passes through for RSA without modulus"):
+    assert(SecurityChecks.preVerify(SignAlgorithm.RsaPkcs1Sha256, Array[Byte](1, 2, 3), None).isRight)
+
+  test("preVerify accepts RSA signature s < n"):
+    val modulus = new Array[Byte](256)
+    modulus(0) = 0x80.toByte
+    val sig = new Array[Byte](256)
+    sig(255) = 1 // s = 1, which is much less than n
+    assert(SecurityChecks.preVerify(SignAlgorithm.RsaPkcs1Sha256, sig, Some(modulus)).isRight)
+
+  test("preVerify rejects RSA signature s >= n (not reduced)"):
+    val modulus = new Array[Byte](256)
+    modulus(0) = 0x01.toByte // small modulus so it's easy to exceed
+    val sig = new Array[Byte](256)
+    java.util.Arrays.fill(sig, 0xff.toByte) // s = 2^2048 - 1, much larger than modulus
+    assert(SecurityChecks.preVerify(SignAlgorithm.RsaPkcs1Sha256, sig, Some(modulus)).isLeft)
 
   test("validateSigningRole accepts symmetric key"):
     val key = CryptoKey.Symmetric(new Array[Byte](32))

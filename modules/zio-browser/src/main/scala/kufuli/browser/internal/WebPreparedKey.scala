@@ -24,4 +24,8 @@ import kufuli.SignAlgorithm
 import kufuli.zio.SigningKeyInternal
 
 /** Web Crypto-specific prepared signing key wrapping a browser `CryptoKey` and its bound algorithm. */
-final private[kufuli] class WebPreparedKey(val cryptoKey: WebCryptoKey, val signAlgorithm: SignAlgorithm) extends SigningKeyInternal
+final private[kufuli] class WebPreparedKey(
+  val cryptoKey: WebCryptoKey,
+  val signAlgorithm: SignAlgorithm,
+  val rsaModulus: Option[Array[Byte]]
+) extends SigningKeyInternal
