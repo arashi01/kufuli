@@ -265,7 +265,9 @@ jobs:
       - name: Setup Java ${{ env.JDK_CURRENT }}
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
+          # Adoptium Temurin does not publish Windows aarch64 JDK 25 (latest is 21);
+          # Microsoft Build of OpenJDK ships both x64 and aarch64 win JDK 25.
+          distribution: microsoft
           java-version: ${{ env.JDK_CURRENT }}
           check-latest: true
 

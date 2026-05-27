@@ -20,17 +20,13 @@
  */
 package kufuli.tests
 
-import boilerplate.Platform
-
 import kufuli.SignAlgorithm
 
-/** Scala Native: EdDSA support is OS-conditional. OpenSSL (Linux) implements Ed25519 and Ed448
-  * since 1.1.1, while Security.framework on macOS and BCrypt on Windows do not expose EdDSA
-  * primitives at all. Branches on [[boilerplate.Platform]] reduce to a compile-time constant
-  * because exactly one OS source directory is selected when the toolchain links the binary.
+/** Scala Native on macOS: Security.framework does not expose EdDSA primitives, so Ed25519 and Ed448
+  * are unsupported. All other algorithms are available via Security.framework and CommonCrypto.
   */
 object PlatformAlgorithms:
 
-  def supports(alg: SignAlgorithm): Boolean = alg match
-    case SignAlgorithm.Ed25519 | SignAlgorithm.Ed448 => Platform.linux
+  inline def supports(alg: SignAlgorithm): Boolean = alg match
+    case SignAlgorithm.Ed25519 | SignAlgorithm.Ed448 => false
     case _                                           => true

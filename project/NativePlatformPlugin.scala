@@ -74,6 +74,13 @@ object NativePlatformPlugin extends AutoPlugin {
     s"$osPart-$archTag"
   }
 
+  /** Bare OS name (`linux`/`macos`/`windows`) used to select per-OS source directories. */
+  val osName: String = os match {
+    case Os.Linux   => "linux"
+    case Os.MacOs   => "macos"
+    case Os.Windows => "windows"
+  }
+
   /** Set by CI for musl-static cells; absent or unset for all dynamic builds. */
   val staticLink: Boolean = sys.env.get("KUFULI_STATIC_LINK").contains("true")
 
@@ -101,5 +108,15 @@ object NativePlatformPlugin extends AutoPlugin {
 
   /** Transitive system libraries OpenSSL pulls in via `DT_NEEDED` when statically linked. */
   private def staticLinkOptions: Seq[String] = Seq("-lz", "-ldl", "-lpthread", "-static")
+
+  /** Adds `src/test/scala-<os>` to a Native module's test sources. Mirrors the per-OS source-dir
+    * pattern boilerplate uses for its own `Platform` constant. boilerplate's published JAR bakes
+    * the publisher-host's `Platform.linux` into a compile-time constant, so consumers cannot use it
+    * for target-OS detection. Each kufuli CI cell builds on its actual target host, so build-host
+    * detection here resolves to the right test-time platform identity.
+    */
+  val osTestSourceSettings: Seq[Setting[?]] = Seq(
+    Test / unmanagedSourceDirectories += baseDirectory.value / "src" / "test" / s"scala-$osName"
+  )
 
 }

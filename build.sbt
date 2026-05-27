@@ -161,6 +161,7 @@ val `kufuli-tests` =
     .settings(description := "Cross-platform integration tests for kufuli")
     .nativeSettings(nativeSettings)
     .nativeSettings(NativePlatformPlugin.cryptoLinkSettings)
+    .nativeSettings(NativePlatformPlugin.osTestSourceSettings)
     .jsSettings(jsSettings)
     .settings(
       libraryDependencies ++= List(

@@ -22,7 +22,7 @@ if [[ -n "${SBT_PROPS:-}" ]]; then
 fi
 
 if [[ -z "${DOCKER_IMAGE:-}" ]]; then
-  exec sbt "${extra_args[@]}" "$@"
+  exec sbt ${extra_args[@]+"${extra_args[@]}"} "$@"
 fi
 
 mkdir -p "$HOME/.cache/coursier" "$HOME/.cache/sbt"
@@ -46,4 +46,4 @@ done
 
 exec docker run "${docker_args[@]}" --entrypoint sh "$DOCKER_IMAGE" -c \
   'mkdir -p "$HOME" && exec sbt "$@"' \
-  sh "${extra_args[@]}" "$@"
+  sh ${extra_args[@]+"${extra_args[@]}"} "$@"
