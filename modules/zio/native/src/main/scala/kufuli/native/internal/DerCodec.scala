@@ -34,16 +34,12 @@ import _root_.kufuli.OkpCurve
   */
 private[kufuli] object DerCodec:
 
-  // -- DER tag constants --
-
   private val TagInteger: Byte = 0x02
   private val TagBitString: Byte = 0x03
   private val TagOctetString: Byte = 0x04
   private val TagNull: Byte = 0x05
   private val TagSequence: Byte = 0x30
   private val TagContextual1: Byte = 0xa1.toByte
-
-  // -- Pre-encoded OIDs (tag + length + value) --
 
   /** OID 1.2.840.113549.1.1.1 (rsaEncryption) */
   private val OidRsa: Array[Byte] =
@@ -77,8 +73,6 @@ private[kufuli] object DerCodec:
   private val OidX25519: Array[Byte] =
     Array[Byte](0x06, 0x03, 0x2b, 0x65, 0x6e)
 
-  // -- Public API --
-
   /** Encodes a [[kufuli.CryptoKey CryptoKey]] to bytes for the C layer. */
   def encode(key: CryptoKey): Array[Byte] = key match
     case CryptoKey.Symmetric(bytes)                                   => bytes
@@ -88,8 +82,6 @@ private[kufuli] object DerCodec:
     case CryptoKey.EcPrivate(curve, x, y, d)                          => encodeEcPrivate(curve, x, y, d)
     case CryptoKey.OkpPublic(curve, x)                                => encodeOkpPublic(curve, x)
     case CryptoKey.OkpPrivate(curve, _, d)                            => encodeOkpPrivate(curve, d)
-
-  // -- DER primitives --
 
   /** Encodes a DER length. */
   private def derLength(length: Int): Array[Byte] =
@@ -129,8 +121,6 @@ private[kufuli] object DerCodec:
   /** DER NULL encoding. */
   private val DerNull: Array[Byte] = Array(TagNull, 0x00)
 
-  // -- RSA --
-
   /** SubjectPublicKeyInfo for RSA public key. */
   private def encodeRsaPublic(modulus: Array[Byte], exponent: Array[Byte]): Array[Byte] =
     val algorithmId = derSequence(OidRsa, DerNull)
@@ -163,8 +153,6 @@ private[kufuli] object DerCodec:
     derSequence(derSmallInt(0), algorithmId, derOctetString(rsaPrivKey))
   end encodeRsaPrivate
 
-  // -- EC (ECDSA) --
-
   private def ecCurveOid(curve: EcCurve): Array[Byte] = curve match
     case EcCurve.P256 => OidP256
     case EcCurve.P384 => OidP384
@@ -187,8 +175,6 @@ private[kufuli] object DerCodec:
     val contextual1 = derTlv(TagContextual1, publicKeyBits)
     val ecPrivKey = derSequence(derSmallInt(1), derOctetString(d), contextual1)
     derSequence(derSmallInt(0), algorithmId, derOctetString(ecPrivKey))
-
-  // -- OKP (EdDSA / X25519) --
 
   private def okpCurveOid(curve: OkpCurve): Array[Byte] = curve match
     case OkpCurve.Ed25519 => OidEd25519

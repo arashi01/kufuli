@@ -46,11 +46,10 @@ given Verifier with
 
     def verify(data: Array[Byte], signature: Signature): IO[KufuliError, Unit] =
       val sigBytes = Signature.unwrapRaw(signature)
-      // Pattern match narrows PreparedKeyInternal -> JvmPreparedKey, Key -> SecretKey/PublicKey
       PreparedKey.unwrapKey[Verifying](key) match
         case jvmKey: JvmPreparedKey =>
           val alg = jvmKey.signAlgorithm
-          ZIO.fromEither(SecurityChecks.preVerify(alg, sigBytes)).flatMap { _ =>
+          ZIO.fromEither(SecurityChecks.preVerify(alg, sigBytes, jvmKey.rsaModulus)).flatMap { _ =>
             (alg, jvmKey.jcaKey) match
               case (_: SignAlgorithm.HmacSha256.type | _: SignAlgorithm.HmacSha384.type | _: SignAlgorithm.HmacSha512.type,
                     sk: SecretKey

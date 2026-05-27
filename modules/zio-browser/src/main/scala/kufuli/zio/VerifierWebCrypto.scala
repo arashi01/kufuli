@@ -35,7 +35,7 @@ import kufuli.Verifying
 import kufuli.zio.PreparedKey
 import kufuli.zio.Verifier
 
-/** Web Crypto (SubtleCrypto) implementation of [[kufuli.zio.Verifier Verifier]]. */
+/** Web Crypto (SubtleCrypto) implementation of [[Verifier]]. */
 given Verifier with
 
   extension (key: PreparedKey[Verifying])
@@ -45,7 +45,7 @@ given Verifier with
       PreparedKey.unwrapKey[Verifying](key) match
         case webKey: WebPreparedKey =>
           val alg = webKey.signAlgorithm
-          ZIO.fromEither(SecurityChecks.preVerify(alg, sigBytes)).flatMap { _ =>
+          ZIO.fromEither(SecurityChecks.preVerify(alg, sigBytes, webKey.rsaModulus)).flatMap { _ =>
             val dataArr = ByteConversions.toUint8Array(data)
             val sigArr = ByteConversions.toUint8Array(sigBytes)
             ZIO

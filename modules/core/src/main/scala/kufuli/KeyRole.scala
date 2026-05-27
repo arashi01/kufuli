@@ -27,6 +27,7 @@ package kufuli
   */
 sealed trait KeyRole
 
+/** Multiversal equality for [[KeyRole]]. */
 object KeyRole:
   given CanEqual[KeyRole, KeyRole] = CanEqual.derived
 

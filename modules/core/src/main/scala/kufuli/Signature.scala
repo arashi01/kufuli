@@ -38,12 +38,7 @@ package kufuli
   */
 opaque type Signature = Array[Byte]
 
-/** Smart constructors and format conversion for [[Signature]].
-  *
-  * Does not extend [[boilerplate.OpaqueType OpaqueType]] because array-backed types require
-  * `CanEqual` suppression to prevent silently wrong reference equality (same rationale as
-  * [[CryptoKey]]).
-  */
+/** Smart constructors and format conversion for [[Signature]]. */
 object Signature:
 
   /** Wraps raw signature bytes. For HMAC, RSA, and EdDSA signatures where the wire format is

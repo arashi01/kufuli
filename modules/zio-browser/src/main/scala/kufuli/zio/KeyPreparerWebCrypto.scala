@@ -41,7 +41,7 @@ import kufuli.Verifying
 import kufuli.zio.KeyPreparer
 import kufuli.zio.PreparedKey
 
-/** Web Crypto (SubtleCrypto) implementation of [[kufuli.zio.KeyPreparer KeyPreparer]]. */
+/** Web Crypto (SubtleCrypto) implementation of [[KeyPreparer]]. */
 given KeyPreparer with
 
   extension (key: CryptoKey)
@@ -62,8 +62,13 @@ private def prepare(key: CryptoKey, alg: SignAlgorithm, usages: js.Array[String]
       case SignAlgorithm.Ed448 =>
         ZIO.fail(KufuliError.UnsupportedAlgorithm("Ed448 is not supported by Web Crypto"))
       case _ =>
-        webCryptoImportKey(key, alg, usages).map(WebPreparedKey(_, alg))
+        webCryptoImportKey(key, alg, usages).map(WebPreparedKey(_, alg, rsaModulusOf(key)))
   }
+
+private def rsaModulusOf(key: CryptoKey): Option[Array[Byte]] = key match
+  case CryptoKey.RsaPublic(modulus, _)                    => Some(modulus.clone())
+  case CryptoKey.RsaPrivate(modulus, _, _, _, _, _, _, _) => Some(modulus.clone())
+  case _                                                  => None
 
 private def webCryptoImportKey(
   key: CryptoKey,

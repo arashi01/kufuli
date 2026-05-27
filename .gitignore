@@ -2,6 +2,7 @@
 !.github/
 !.gitattributes
 !.gitignore
+!.gitmodules
 !.sbtopts
 !.scalafix.conf
 !.scalafmt.conf
@@ -14,4 +15,5 @@ gen/schemas/
 metals.sbt
 
 *.md
+!CONTRIBUTING.md
 !README.md

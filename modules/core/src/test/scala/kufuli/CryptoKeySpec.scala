@@ -26,8 +26,6 @@ import munit.FunSuite
 
 class CryptoKeySpec extends FunSuite:
 
-  // -- Symmetric --
-
   test("symmetric accepts non-empty byte array"):
     assert(CryptoKey.symmetric(Array[Byte](1, 2, 3)).isRight)
 
@@ -41,8 +39,6 @@ class CryptoKeySpec extends FunSuite:
     key match
       case CryptoKey.Symmetric(keyBytes) => assertEquals(keyBytes(0), 1.toByte)
       case _                             => fail("Expected Symmetric")
-
-  // -- RSA --
 
   test("rsaPublic accepts 2048-bit modulus"):
     val modulus = new Array[Byte](256)
@@ -75,8 +71,6 @@ class CryptoKeySpec extends FunSuite:
         .isLeft
     )
 
-  // -- EC --
-
   // NIST P-256 generator point (FIPS 186-5 (February 2023))
   private val p256Gx: Array[Byte] =
     BigInteger("6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296", 16).toByteArray.dropWhile(_ == 0)
@@ -103,8 +97,6 @@ class CryptoKeySpec extends FunSuite:
     val d = Array.fill[Byte](32)(0xff.toByte)
     assert(CryptoKey.ecPrivate(EcCurve.P256, p256Gx, p256Gy, d).isLeft)
 
-  // -- OKP --
-
   test("okpPublic accepts 32-byte Ed25519 key"):
     assert(CryptoKey.okpPublic(OkpCurve.Ed25519, new Array[Byte](32)).isRight)
 
@@ -122,8 +114,6 @@ class CryptoKeySpec extends FunSuite:
 
   test("okpPublic accepts 57-byte Ed448 key"):
     assert(CryptoKey.okpPublic(OkpCurve.Ed448, new Array[Byte](57)).isRight)
-
-  // -- contentEquals --
 
   test("contentEquals returns true for identical symmetric keys"):
     val k1 = CryptoKey.symmetric(Array[Byte](1, 2, 3)).toOption.get
@@ -161,8 +151,6 @@ class CryptoKeySpec extends FunSuite:
     val k1 = CryptoKey.ecPublic(EcCurve.P256, p256Gx, p256Gy).toOption.get
     val k2 = CryptoKey.ecPublic(EcCurve.P384, p384Gx, p384Gy).toOption.get
     assert(!CryptoKey.contentEquals(k1, k2))
-
-  // -- Introspection --
 
   test("keyType returns Symmetric for symmetric key"):
     val key = CryptoKey.symmetric(Array[Byte](1, 2, 3)).toOption.get

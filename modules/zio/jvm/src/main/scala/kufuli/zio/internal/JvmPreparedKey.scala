@@ -24,4 +24,8 @@ import kufuli.SignAlgorithm
 import kufuli.zio.SigningKeyInternal
 
 /** JVM-specific prepared signing key wrapping a JCA key object and its bound algorithm. */
-final private[kufuli] class JvmPreparedKey(val jcaKey: java.security.Key, val signAlgorithm: SignAlgorithm) extends SigningKeyInternal
+final private[kufuli] class JvmPreparedKey(
+  val jcaKey: java.security.Key,
+  val signAlgorithm: SignAlgorithm,
+  val rsaModulus: Option[Array[Byte]]
+) extends SigningKeyInternal

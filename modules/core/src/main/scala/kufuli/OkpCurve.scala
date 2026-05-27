@@ -26,6 +26,7 @@ package kufuli
 enum OkpCurve derives CanEqual:
   case Ed25519, Ed448, X25519
 
+/** Per-curve key + signature lengths and JWK identifier for [[OkpCurve]]. */
 object OkpCurve:
 
   extension (curve: OkpCurve)

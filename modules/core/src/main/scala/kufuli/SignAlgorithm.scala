@@ -41,6 +41,9 @@ enum SignAlgorithm derives CanEqual:
   case Ed25519, Ed448
 end SignAlgorithm
 
+/** JWS name resolution and per-algorithm metadata (digest, JWS string, associated curve) for
+  * [[SignAlgorithm]].
+  */
 object SignAlgorithm:
 
   /** Resolves a JWS "alg" header value per RFC 7518 (May 2015) ss3.1 to a [[SignAlgorithm]]. For

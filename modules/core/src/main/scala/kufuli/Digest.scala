@@ -30,12 +30,7 @@ package kufuli
   */
 opaque type Digest = Array[Byte]
 
-/** Smart constructors and timing-safe comparison for [[Digest]].
-  *
-  * Does not extend [[boilerplate.OpaqueType OpaqueType]] because array-backed types require
-  * `CanEqual` suppression to prevent silently wrong reference equality (same rationale as
-  * [[CryptoKey]] and [[Signature]]).
-  */
+/** Smart constructors and timing-safe comparison for [[Digest]]. */
 object Digest:
 
   /** Constructs a Digest from known bytes, validating length matches the given algorithm output. */

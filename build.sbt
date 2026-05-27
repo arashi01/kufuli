@@ -1,6 +1,6 @@
 inThisBuild(
   List(
-    scalaVersion := "3.8.2",
+    scalaVersion := "3.8.3",
     organization := "io.github.arashi01",
     startYear := Some(2026),
     homepage := Some(url("https://github.com/arashi01/kufuli")),
@@ -20,14 +20,14 @@ inThisBuild(
 )
 
 val libraries = new {
-  val boilerplate = Def.setting("io.github.arashi01" %%% "boilerplate" % "0.6.0")
-  val `jsoniter-scala-core` = Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % "2.38.9")
-  val `jsoniter-scala-macros` = Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-macros" % "2.38.9")
-  val munit = Def.setting("org.scalameta" %%% "munit" % "1.2.4")
-  val `munit-scalacheck` = Def.setting("org.scalameta" %%% "munit-scalacheck" % "1.2.0")
+  val boilerplate = Def.setting("io.github.arashi01" %%% "boilerplate" % "0.8.0")
+  val `jsoniter-scala-core` = Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % "2.38.12")
+  val `jsoniter-scala-macros` = Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-macros" % "2.38.12")
+  val munit = Def.setting("org.scalameta" %%% "munit" % "1.3.0")
+  val `munit-scalacheck` = Def.setting("org.scalameta" %%% "munit-scalacheck" % "1.3.0")
   val `munit-zio` = Def.setting("com.github.poslegm" %%% "munit-zio" % "0.4.0")
   val `scala-java-time` = Def.setting("io.github.cquiroz" %%% "scala-java-time" % "2.6.0")
-  val zio = Def.setting("dev.zio" %%% "zio" % "2.1.24")
+  val zio = Def.setting("dev.zio" %%% "zio" % "2.1.26")
 }
 
 val `kufuli-core` =
@@ -67,7 +67,7 @@ val `kufuli-zio` =
     .settings(publishSettings)
     .settings(description := "ZIO typeclass traits and platform-specific crypto backends")
     .nativeSettings(nativeSettings)
-    .nativeSettings(nativeCryptoLinkSettings)
+    .nativeSettings(NativePlatformPlugin.cryptoLinkSettings)
     .jsSettings(jsSettings)
     .jsSettings(Compile / doc / sources := Nil) // Scala 3 doc compiler cannot resolve overloaded @js.native methods in NodeCrypto
     .jsConfigure(_.dependsOn(`kufuli-js-shared`))
@@ -88,10 +88,38 @@ val `kufuli-testkit` =
     .jsSettings(jsSettings)
     .settings(libraryDependencies += libraries.munit.value)
 
+// Wycheproof JSON vector files embedded into every kufuli-tests platform plus kufuli-zio-browser,
+// so the same shared test suites run uniformly across JVM, JS Node.js, Scala Native, and the
+// Web Crypto (Playwright) backend.
+val wycheproofVectors = Seq(
+  // ECDSA (DER)
+  "ecdsa_secp256r1_sha256_test.json",
+  "ecdsa_secp384r1_sha384_test.json",
+  "ecdsa_secp521r1_sha512_test.json",
+  // ECDSA (P1363)
+  "ecdsa_secp256r1_sha256_p1363_test.json",
+  "ecdsa_secp384r1_sha384_p1363_test.json",
+  "ecdsa_secp521r1_sha512_p1363_test.json",
+  // Ed25519
+  "ed25519_test.json",
+  // RSA PKCS#1
+  "rsa_signature_2048_sha256_test.json",
+  "rsa_signature_2048_sha384_test.json",
+  "rsa_signature_2048_sha512_test.json",
+  // RSA-PSS
+  "rsa_pss_2048_sha256_mgf1_32_test.json",
+  "rsa_pss_2048_sha384_mgf1_48_test.json",
+  "rsa_pss_4096_sha512_mgf1_64_test.json",
+  // HMAC
+  "hmac_sha256_test.json",
+  "hmac_sha384_test.json",
+  "hmac_sha512_test.json"
+)
+
 val `kufuli-zio-browser` =
   project
     .in(file("modules/zio-browser"))
-    .enablePlugins(ScalaJSPlugin)
+    .enablePlugins(ScalaJSPlugin, WycheproofPlugin)
     .dependsOn(`kufuli-js-shared`)
     .settings(compilerSettings)
     .settings(unitTestSettings)
@@ -100,30 +128,51 @@ val `kufuli-zio-browser` =
     .settings(jsSettings)
     .settings(description := "Web Crypto (SubtleCrypto) backend for kufuli")
     .settings(libraryDependencies += libraries.zio.value)
-    .settings(Compile / unmanagedSourceDirectories += baseDirectory.value / ".." / "zio" / "shared" / "src" / "main" / "scala")
-    .settings(Test / jsEnv := new jsenv.playwright.PWEnv(browserName = "chromium", headless = true, showLogs = true))
-    .dependsOn(`kufuli-testkit`.js % Test)
-
-val `kufuli-zio-tests` =
-  crossProject(JVMPlatform, JSPlatform, NativePlatform)
-    .withoutSuffixFor(JVMPlatform)
-    .crossType(CrossType.Full)
-    .in(file("modules/zio-tests"))
-    .dependsOn(`kufuli-zio`, `kufuli-testkit`)
-    .settings(compilerSettings)
-    .settings(unitTestSettings)
-    .settings(fileHeaderSettings)
-    .settings(publish / skip := true)
-    .settings(description := "ZIO test instantiation for kufuli testkit")
-    .nativeSettings(nativeSettings)
-    .nativeSettings(nativeCryptoLinkSettings)
-    .jsSettings(jsSettings)
-    .settings(libraryDependencies += libraries.zio.value)
-    .jvmSettings(
+    .settings(
       libraryDependencies ++= List(
         libraries.`jsoniter-scala-core`.value % Test,
         libraries.`jsoniter-scala-macros`.value % Test
       )
+    )
+    .settings(Compile / unmanagedSourceDirectories += baseDirectory.value / ".." / "zio" / "shared" / "src" / "main" / "scala")
+    .settings(
+      // Run the same cross-platform test suites in a Playwright/Chromium jsEnv so Web Crypto is
+      // exercised against the full vector corpus and behavioural surface every other backend uses.
+      Test / unmanagedSourceDirectories += baseDirectory.value / ".." / "tests" / "shared" / "src" / "test" / "scala"
+    )
+    .settings(Test / jsEnv := new jsenv.playwright.PWEnv(browserName = "chromium", headless = true, showLogs = true))
+    .settings(
+      WycheproofPlugin.autoImport.wycheproofTargetPackage := "kufuli.tests.wycheproof",
+      WycheproofPlugin.autoImport.wycheproofVectorFiles := wycheproofVectors
+    )
+    .dependsOn(`kufuli-testkit`.js % Test)
+
+val `kufuli-tests` =
+  crossProject(JVMPlatform, JSPlatform, NativePlatform)
+    .withoutSuffixFor(JVMPlatform)
+    .crossType(CrossType.Full)
+    .in(file("modules/tests"))
+    .dependsOn(`kufuli-zio`, `kufuli-testkit`)
+    .enablePlugins(WycheproofPlugin)
+    .settings(compilerSettings)
+    .settings(unitTestSettings)
+    .settings(fileHeaderSettings)
+    .settings(publish / skip := true)
+    .settings(description := "Cross-platform integration tests for kufuli")
+    .nativeSettings(nativeSettings)
+    .nativeSettings(NativePlatformPlugin.cryptoLinkSettings)
+    .nativeSettings(NativePlatformPlugin.osTestSourceSettings)
+    .jsSettings(jsSettings)
+    .settings(
+      libraryDependencies ++= List(
+        libraries.zio.value,
+        libraries.`jsoniter-scala-core`.value % Test,
+        libraries.`jsoniter-scala-macros`.value % Test
+      )
+    )
+    .settings(
+      WycheproofPlugin.autoImport.wycheproofTargetPackage := "kufuli.tests.wycheproof",
+      WycheproofPlugin.autoImport.wycheproofVectorFiles := wycheproofVectors
     )
 
 val `kufuli-jvm` =
@@ -134,7 +183,7 @@ val `kufuli-jvm` =
       `kufuli-core`.jvm,
       `kufuli-zio`.jvm,
       `kufuli-testkit`.jvm,
-      `kufuli-zio-tests`.jvm
+      `kufuli-tests`.jvm
     )
 
 val `kufuli-js` =
@@ -147,7 +196,7 @@ val `kufuli-js` =
       `kufuli-zio`.js,
       `kufuli-zio-browser`,
       `kufuli-testkit`.js,
-      `kufuli-zio-tests`.js
+      `kufuli-tests`.js
     )
 
 val `kufuli-native` =
@@ -158,7 +207,7 @@ val `kufuli-native` =
       `kufuli-core`.native,
       `kufuli-zio`.native,
       `kufuli-testkit`.native,
-      `kufuli-zio-tests`.native
+      `kufuli-tests`.native
     )
 
 val `kufuli-root` =
@@ -177,21 +226,6 @@ def jsSettings = List(
 
 def nativeSettings = List(
   dependencyOverrides += "org.scala-native" %%% "test-interface" % buildinfo.BuildInfo.scalaNativeVersion % Test
-)
-
-// Platform crypto library linking - only for modules containing or depending on C FFI code
-def nativeCryptoLinkSettings = List(
-  nativeConfig ~= { c =>
-    val os = System.getProperty("os.name").toLowerCase
-    if (os.contains("linux"))
-      c.withLinkingOptions(c.linkingOptions ++ Seq("-lssl", "-lcrypto"))
-    else if (os.contains("mac") || os.contains("darwin"))
-      c.withLinkingOptions(c.linkingOptions ++ Seq("-framework", "Security", "-framework", "CoreFoundation"))
-    else if (os.contains("win"))
-      c.withLinkingOptions(c.linkingOptions ++ Seq("-lbcrypt"))
-    else
-      c
-  }
 )
 
 def baseCompilerOptions = List(
@@ -269,11 +303,6 @@ def fileHeaderSettings: List[Setting[?]] =
     headerEmptyLine := false
   )
 
-def pgpSettings: List[Setting[?]] = List(
-  PgpKeys.pgpSelectPassphrase := None,
-  usePgpKeyHex(System.getenv("SIGNING_KEY_ID"))
-)
-
 def versionSetting: Def.Initialize[String] = Def.setting(
   dynverGitDescribeOutput.value.mkVersion(
     (in: sbtdynver.GitDescribeOutput) =>
@@ -296,7 +325,7 @@ def versionSetting: Def.Initialize[String] = Def.setting(
   )
 )
 
-def publishSettings: List[Setting[?]] = pgpSettings ++: aetherSettings ++: List(
+def publishSettings: List[Setting[?]] = List(
   packageOptions += Package.ManifestAttributes(
     "Build-Jdk" -> System.getProperty("java.version"),
     "Specification-Title" -> name.value,
@@ -318,18 +347,6 @@ def publishSettings: List[Setting[?]] = pgpSettings ++: aetherSettings ++: List(
       url("https://github.com/arashi01")
     )
   )
-)
-
-// Maven-native snapshot deployment via sbt-aether-deploy (timestamped SNAPSHOTs with maven-metadata.xml)
-def aetherSettings: List[Setting[?]] = List(
-  credentials ++= {
-    val user = sys.env.get("SONATYPE_USERNAME")
-    val pass = sys.env.get("SONATYPE_PASSWORD")
-    (user, pass) match {
-      case (Some(u), Some(p)) => List(Credentials("central-snapshots", "central.sonatype.com", u, p))
-      case _                  => Nil
-    }
-  }
 )
 
 addCommandAlias("format", "scalafixAll; scalafmtAll; scalafmtSbt; headerCreateAll")

@@ -24,12 +24,12 @@ env:
   SBT_OPTS: >-
     -Xmx10G
     -Xms6G
-    -Xss8M
+    -Xss4M
     -XX:ReservedCodeCacheSize=512M
 
 jobs:
   test_jvm:
-    name: Test (JVM / JDK ${{ matrix.java }})
+    name: "[JVM: JDK ${{ matrix.java }}] Tests"
     strategy:
       fail-fast: false
       matrix:
@@ -42,6 +42,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          submodules: recursive
 
       - name: Setup Java ${{ matrix.java }}
         uses: actions/setup-java@v5
@@ -56,14 +57,14 @@ jobs:
       - name: Set up Coursier cache
         uses: coursier/cache-action@v8
 
-      - name: Test
-        run: sbt --no-colors --supershell=false "kufuli-jvm/test"
+      - name: Tests
+        run: ./project/scripts/run-sbt.sh "kufuli-jvm/test"
 
       - name: Package
-        run: sbt --no-colors --supershell=false "kufuli-jvm/package"
+        run: ./project/scripts/run-sbt.sh "kufuli-jvm/package"
 
   test_js:
-    name: Test (JS / Node.js ${{ matrix.node }})
+    name: "[JS: Node.js ${{ matrix.node }}] Tests"
     strategy:
       fail-fast: false
       matrix:
@@ -76,6 +77,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          submodules: recursive
 
       - name: Setup Node.js ${{ matrix.node }}
         uses: actions/setup-node@v6
@@ -96,26 +98,118 @@ jobs:
       - name: Set up Coursier cache
         uses: coursier/cache-action@v8
 
-      - name: Test
-        run: sbt --no-colors --supershell=false "kufuli-js/test"
+      - name: Tests
+        run: ./project/scripts/run-sbt.sh "kufuli-js/test"
 
       - name: Package
-        run: sbt --no-colors --supershell=false "kufuli-js/package"
+        run: ./project/scripts/run-sbt.sh "kufuli-js/package"
 
-  test_native:
-    name: Test (Native / ${{ matrix.os }})
+  test_native_linux:
+    name: "[Native: ${{ matrix.target }}] Tests"
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2025, macos-26]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+        include:
+          - target: linux-glibc-x86_64
+            runner: ubuntu-24.04
+            dockerImage: shuwariafrica/el10-jdk:25
+            link: dynamic
+          - target: linux-glibc-aarch64
+            runner: ubuntu-24.04-arm
+            dockerImage: shuwariafrica/el10-jdk:25
+            link: dynamic
+          # scala-native's musl sigaltstack/SIGSTKSZ handling (upstream PR #4934, pending release)
+          # SIGSEGVs static binaries at startup today and is fragile in dynamic mode on some hosts;
+          # alpine support is best-effort until that fix ships.
+          - target: linux-musl-x86_64
+            runner: ubuntu-24.04
+            dockerImage: shuwariafrica/alpine-jdk:25
+            link: dynamic
+            continueOnError: true
+          - target: linux-musl-aarch64
+            runner: ubuntu-24.04-arm
+            dockerImage: shuwariafrica/alpine-jdk:25
+            link: dynamic
+            continueOnError: true
+          - target: linux-musl-x86_64-static
+            runner: ubuntu-24.04
+            dockerImage: shuwariafrica/alpine-jdk:25
+            link: static
+            continueOnError: true
+          - target: linux-musl-aarch64-static
+            runner: ubuntu-24.04-arm
+            dockerImage: shuwariafrica/alpine-jdk:25
+            link: static
+            continueOnError: true
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.continueOnError == true }}
+    timeout-minutes: 45
+    env:
+      DOCKER_IMAGE: ${{ matrix.dockerImage }}
+      KUFULI_STATIC_LINK: ${{ matrix.link == 'static' && 'true' || 'false' }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          submodules: recursive
+
+      - name: Set up Coursier cache
+        uses: coursier/cache-action@v8
+
+      - name: Tests
+        id: tests
+        shell: bash
+        run: ./project/scripts/run-sbt.sh "kufuli-native/test"
+
+      - name: Package
+        if: matrix.link == 'dynamic'
+        shell: bash
+        run: ./project/scripts/run-sbt.sh "kufuli-native/package"
+
+      - name: Verify static linkage
+        # The link-time artefact is produced regardless of runtime behaviour, so this assertion
+        # runs even when Tests has failed (musl static SIGSEGV pending SN PR #4934). The static
+        # link contract is independent of test execution success.
+        if: always() && matrix.link == 'static' && steps.tests.conclusion != 'skipped'
+        shell: bash
+        # Inside the alpine image so `file` and `ldd` are the musl variants and report correctly
+        # against musl binaries. `file` is not pre-installed in shuwariafrica/alpine-jdk so add it
+        # for the duration of the assertion.
+        run: |
+          docker run --rm -v "$PWD:$PWD" -w "$PWD" "$DOCKER_IMAGE" sh -c '
+            set -e
+            apk add --no-cache file >/dev/null
+            # The newest scala-version target is the just-built one; deterministic in CI because
+            # each runner is fresh.
+            bin=$(ls -1d modules/tests/native/target/scala-*/kufuli-tests-test 2>/dev/null | sort -V | tail -1)
+            if [ -z "$bin" ]; then
+              echo "::error::no Native test binary located for static-linkage assertion"
+              exit 1
+            fi
+            echo "--- $bin"
+            file_out=$(file "$bin")
+            ldd_out=$(ldd "$bin" 2>&1 || true)
+            echo "$file_out"
+            echo "ldd: $ldd_out"
+            case "$file_out" in
+              *"statically linked"*) echo "OK: statically linked" ;;
+              *) echo "::error::$bin is NOT statically linked: $file_out"; exit 1 ;;
+            esac
+          '
+
+  test_native_macos:
+    name: "[Native: macOS aarch64] Tests"
+    runs-on: macos-26
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
 
       - name: Setup Java ${{ env.JDK_CURRENT }}
         uses: actions/setup-java@v5
@@ -130,35 +224,75 @@ jobs:
       - name: Set up Coursier cache
         uses: coursier/cache-action@v8
 
-      # Scala Native toolchain + platform crypto dependencies
-      # Linux: OpenSSL (EVP API), macOS: Security.framework (built-in), Windows: BCrypt (built-in)
-      - name: Install LLVM/Clang toolchain (Ubuntu)
-        if: startsWith(matrix.os, 'ubuntu')
-        shell: bash
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y clang lld llvm libssl-dev
-
-      - name: Install LLVM toolchain (macOS)
-        if: startsWith(matrix.os, 'macos')
+      - name: Install LLVM via Homebrew
+        # macOS-26 ships Xcode's clang, but scala-native 0.5.12 deprecates LLVM < 16
         shell: bash
         run: |
           brew update
           brew install llvm || true
           echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
 
-      - name: Install LLVM toolchain (Windows)
-        if: startsWith(matrix.os, 'windows')
-        shell: pwsh
-        run: |
-          choco install -y llvm
-          echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: Test
-        run: sbt --no-colors --supershell=false "kufuli-native/test"
+      - name: Tests
+        shell: bash
+        run: ./project/scripts/run-sbt.sh "kufuli-native/test"
 
       - name: Package
-        run: sbt --no-colors --supershell=false "kufuli-native/package"
+        shell: bash
+        run: ./project/scripts/run-sbt.sh "kufuli-native/package"
+
+  test_native_windows:
+    name: "[Native: Windows ${{ matrix.arch }}] Tests"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: windows-2025
+            vcvarsArch: amd64
+          - arch: aarch64
+            runner: windows-11-arm
+            vcvarsArch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup Java ${{ env.JDK_CURRENT }}
+        uses: actions/setup-java@v5
+        with:
+          # Adoptium Temurin does not publish Windows aarch64 JDK 25 (latest is 21);
+          # Microsoft Build of OpenJDK ships both x64 and aarch64 win JDK 25.
+          distribution: microsoft
+          java-version: ${{ env.JDK_CURRENT }}
+          check-latest: true
+
+      - name: Set up sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Set up Coursier cache
+        uses: coursier/cache-action@v8
+
+      - name: Setup MSVC clang (vcvarsall ${{ matrix.vcvarsArch }})
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+                  -latest -property installationPath
+          cmd /c "`"$vs\VC\Auxiliary\Build\vcvarsall.bat`" ${{ matrix.vcvarsArch }} && set" |
+            ForEach-Object { if ($_ -match '^([^=]+)=(.*)$') { "$($Matches[1])=$($Matches[2])" } } |
+            Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Tests
+        shell: bash
+        run: ./project/scripts/run-sbt.sh "kufuli-native/test"
+
+      - name: Package
+        shell: bash
+        run: ./project/scripts/run-sbt.sh "kufuli-native/package"
 
   static_analysis:
     name: Static Analysis
@@ -170,8 +304,9 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          submodules: recursive
 
-      - name: Set up Java ${{ env.JDK_CURRENT }}
+      - name: Setup Java ${{ env.JDK_CURRENT }}
         uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -187,17 +322,17 @@ jobs:
       - name: Verify Source Formatting
         id: scalafmt
         continue-on-error: true
-        run: sbt --no-colors --supershell=false "scalafmtCheckAll; scalafmtSbtCheck"
+        run: sbt "scalafmtCheckAll; scalafmtSbtCheck"
 
       - name: Verify Linting Conformity
         id: scalafix
         continue-on-error: true
-        run: sbt --no-colors --supershell=false "scalafixAll --check"
+        run: sbt "scalafixAll --check"
 
       - name: Verify File Header Conformity
         id: headers
         continue-on-error: true
-        run: sbt --no-colors --supershell=false headerCheckAll
+        run: sbt headerCheckAll
 
       - name: Check for failures
         if: always()
@@ -211,79 +346,28 @@ jobs:
             exit 1
           fi
 
-  snapshot:
-    name: Publish Snapshot
-    needs:
-      - test_jvm
-      - test_js
-      - test_native
-      - static_analysis
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Setup Java ${{ env.JDK_RELEASE }}
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: ${{ env.JDK_RELEASE }}
-          check-latest: true
-
-      - name: Set up sbt
-        uses: sbt/setup-sbt@v1
-
-      - name: Set up Coursier cache
-        uses: coursier/cache-action@v8
-
-      - name: Import Signing Key
-        uses: crazy-max/ghaction-import-gpg@v7
-        with:
-          gpg_private_key: ${{ secrets.SIGNING_KEY }}
-          trust_level: 5
-
-      - name: Publish Snapshot
-        run: sbt --no-colors --supershell=false aetherDeploy
-        env:
-          SONATYPE_USERNAME: ${{ secrets.PUBLISH_USER }}
-          SONATYPE_PASSWORD: ${{ secrets.PUBLISH_USER_PASSPHRASE }}
-          SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
-
   publish:
-    name: Publish Release
+    name: Publish Binaries
     needs:
       - test_jvm
       - test_js
-
-      - test_native
+      - test_native_linux
+      - test_native_macos
+      - test_native_windows
       - static_analysis
-    if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-24.04
+    container: shuwariafrica/el10-jdk:25
     timeout-minutes: 90
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-
-      - name: Setup Java ${{ env.JDK_RELEASE }}
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: ${{ env.JDK_RELEASE }}
-          check-latest: true
-
-      - name: Set up sbt
-        uses: sbt/setup-sbt@v1
-
-      - name: Set up Coursier cache
-        uses: coursier/cache-action@v8
+          submodules: recursive
 
       - name: Import Signing Key
         uses: crazy-max/ghaction-import-gpg@v7
@@ -293,17 +377,26 @@ jobs:
           git_commit_gpgsign: true
           trust_level: 5
 
-      - name: Publish Projects
-        run: sbt --no-colors --supershell=false "clean; publishSigned; sonaUpload; sonaRelease"
+      - name: Set up Coursier cache
+        uses: coursier/cache-action@v8
+
+      - name: Publish Binaries
+        run: sbt publishSigned
         env:
           SONATYPE_USERNAME: ${{ secrets.PUBLISH_USER }}
           SONATYPE_PASSWORD: ${{ secrets.PUBLISH_USER_PASSPHRASE }}
-          SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
+
+      - name: Publish Maven Central Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: sbt "sonaUpload; sonaRelease"
+        env:
+          SONATYPE_USERNAME: ${{ secrets.PUBLISH_USER }}
+          SONATYPE_PASSWORD: ${{ secrets.PUBLISH_USER_PASSPHRASE }}
 
   release:
     name: Create GitHub Release
     needs: [publish]
-    if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -312,6 +405,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          submodules: recursive
 
       - name: Create GitHub Release
         env:
@@ -338,6 +432,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          submodules: recursive
 
       - name: Setup Java ${{ env.JDK_CURRENT }}
         uses: actions/setup-java@v5

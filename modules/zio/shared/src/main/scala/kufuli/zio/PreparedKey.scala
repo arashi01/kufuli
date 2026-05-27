@@ -25,36 +25,31 @@ import boilerplate.OpaqueType
 import kufuli.KeyRole
 import kufuli.KufuliError
 
-/** Platform-specific prepared key representation.
-  *
-  * This base trait carries no algorithm information. Operation-specific subtraits
-  * ([[SigningKeyInternal]], and future encryption/key-agreement variants) add the appropriate
-  * algorithm type. Platform backends extend the relevant subtrait.
+/** Internal marker for platform-specific prepared key representations. Algorithm binding lives in
+  * subtraits such as [[SigningKeyInternal]].
   */
 private[kufuli] trait PreparedKeyInternal
 
-/** Subtrait for prepared keys bound to a signing algorithm. */
+/** Signing-algorithm-bound prepared key. RSA backends expose the modulus via [[rsaModulus]] so
+  * pre-verification can reject signatures whose integer value is not less than the modulus per RFC
+  * 8017 (November 2016) ss5.2.2 step 1.
+  */
 private[kufuli] trait SigningKeyInternal extends PreparedKeyInternal:
   def signAlgorithm: kufuli.SignAlgorithm
+  def rsaModulus: Option[Array[Byte]]
 
-/** Opaque wrapper around a platform-specific prepared key, tagged with a phantom
-  * [[kufuli.KeyRole KeyRole]] marker.
+/** Opaque platform-prepared key tagged with a phantom [[kufuli.KeyRole KeyRole]]. Produced by
+  * [[KeyPreparer]] and consumed by [[Signer]] / [[Verifier]]; the role parameter prevents using a
+  * verifying key for signing (and vice versa) at compile time.
   *
-  * Instances are constructed via [[KeyPreparer]] and consumed by [[Signer]] and [[Verifier]]. No
-  * public API shall return `PreparedKey[SymmetricRole]` - preparers always return specific role
-  * types (`PreparedKey[Signing]`, `PreparedKey[Verifying]`, etc.).
-  *
-  * @see [[PreparedKey$ PreparedKey]] companion for factory operations
+  * @see [[PreparedKey$ PreparedKey]] companion.
   */
 opaque type PreparedKey[+R <: KeyRole] = PreparedKeyInternal
 
-/** Factory and unwrap operations for [[PreparedKey]].
-  *
-  * Extends [[boilerplate.OpaqueType OpaqueType]] per project constraints. Platform backends use
-  * [[wrapKey]] and [[unwrapKey]] for typed construction and extraction.
+/** Factory and extractor for [[PreparedKey]]. `CanEqual` is intentionally not provided: prepared
+  * keys wrap platform handles whose reference equality has no meaningful semantics.
   */
-object PreparedKey extends OpaqueType[PreparedKey[KeyRole]]:
-  type Type = PreparedKeyInternal
+object PreparedKey extends OpaqueType[PreparedKey[KeyRole], PreparedKeyInternal]:
   type Error = KufuliError
 
   inline def wrap(value: PreparedKeyInternal): PreparedKey[KeyRole] = value
@@ -64,4 +59,3 @@ object PreparedKey extends OpaqueType[PreparedKey[KeyRole]]:
 
   private[kufuli] def wrapKey[R <: KeyRole](internal: PreparedKeyInternal): PreparedKey[R] = internal
   private[kufuli] def unwrapKey[R <: KeyRole](key: PreparedKey[R]): PreparedKeyInternal = key
-end PreparedKey

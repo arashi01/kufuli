@@ -26,6 +26,7 @@ package kufuli
 enum DigestAlgorithm derives CanEqual:
   case Sha1, Sha256, Sha384, Sha512
 
+/** Extension `outputLength` for [[DigestAlgorithm]]. */
 object DigestAlgorithm:
 
   extension (alg: DigestAlgorithm)

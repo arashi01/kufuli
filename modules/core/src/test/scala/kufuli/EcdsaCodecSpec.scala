@@ -102,7 +102,6 @@ class EcdsaCodecSpec extends FunSuite:
     val der = EcdsaCodec.concatToDer(concat).toOption.get
     val roundTripped = EcdsaCodec.derToConcat(der, 32).toOption.get
     assertEquals(roundTripped.toList, concat.toList)
-  // -- Strict DER rejection tests --
 
   test("derToConcat rejects indefinite-length BER encoding (0x80)"):
     // SEQUENCE with indefinite length: 30 80 ... 00 00
@@ -138,8 +137,6 @@ class EcdsaCodecSpec extends FunSuite:
     // Second element tagged 0x03 (BIT STRING) instead of 0x02 (INTEGER)
     val wrongTag = Array[Byte](0x30, 0x06, 0x02, 0x01, 0x01, 0x03, 0x01, 0x01)
     assert(EcdsaCodec.derToConcat(wrongTag, 32).isLeft)
-
-  // -- P-521 maximum-length component round-trip --
 
   test("round-trip with P-521 maximum-length components (high bit set)"):
     // Both R and S are 66 bytes with high bit set (requires sign padding in DER)

@@ -28,9 +28,8 @@ private[kufuli] object ConstantTime:
     * single pass.
     */
   def equals(a: Array[Byte], b: Array[Byte]): Boolean =
-    // Hotpath: single-pass constant-time comparison avoids timing side-channels.
-    // Mutable accumulator + tight loop prevents branch-based short-circuit that
-    // would leak information about which byte position differs.
+    // Single-pass XOR accumulator: a branch-based short-circuit would leak information about
+    // the first differing byte position via timing.
     val lenMatch = a.length == b.length
     val cmp = if lenMatch then b else a
     // scalafix:off DisableSyntax.var, DisableSyntax.while; security-critical constant-time loop

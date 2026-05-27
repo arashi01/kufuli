@@ -26,6 +26,7 @@ import java.math.BigInteger
 enum EcCurve derives CanEqual:
   case P256, P384, P521
 
+/** Per-curve geometry and JWK identifier for [[EcCurve]]. */
 object EcCurve:
 
   extension (curve: EcCurve)
