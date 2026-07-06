@@ -322,17 +322,17 @@ jobs:
       - name: Verify Source Formatting
         id: scalafmt
         continue-on-error: true
-        run: sbt "scalafmtCheckAll; scalafmtSbtCheck"
+        run: sbt --server "scalafmtCheckAll; scalafmtSbtCheck"
 
       - name: Verify Linting Conformity
         id: scalafix
         continue-on-error: true
-        run: sbt "scalafixAll --check"
+        run: sbt --server "scalafixAll --check"
 
       - name: Verify File Header Conformity
         id: headers
         continue-on-error: true
-        run: sbt headerCheckAll
+        run: sbt --server headerCheckAll
 
       - name: Check for failures
         if: always()
@@ -381,14 +381,14 @@ jobs:
         uses: coursier/cache-action@v8
 
       - name: Publish Binaries
-        run: sbt publishSigned
+        run: sbt --server publishSigned
         env:
           SONATYPE_USERNAME: ${{ secrets.PUBLISH_USER }}
           SONATYPE_PASSWORD: ${{ secrets.PUBLISH_USER_PASSPHRASE }}
 
       - name: Publish Maven Central Release
         if: startsWith(github.ref, 'refs/tags/v')
-        run: sbt "sonaUpload; sonaRelease"
+        run: sbt --server "sonaUpload; sonaRelease"
         env:
           SONATYPE_USERNAME: ${{ secrets.PUBLISH_USER }}
           SONATYPE_PASSWORD: ${{ secrets.PUBLISH_USER_PASSPHRASE }}

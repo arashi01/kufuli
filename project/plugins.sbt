@@ -13,7 +13,3 @@ addSbtPlugin("com.github.sbt" % "sbt-pgp" % "2.3.1")
 lazy val root = (project in file(".")).dependsOn(playwrightEnv)
 lazy val playwrightEnv =
   RootProject(uri("https://github.com/arashi01/scala-js-env-playwright.git#sbt-2"))
-
-// The Playwright Java driver arrives transitively via the jsEnv fork; pin it here so the
-// browser rows resolve a known version.
-libraryDependencies += "com.microsoft.playwright" % "playwright" % "1.61.0"
