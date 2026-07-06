@@ -181,9 +181,9 @@ jobs:
           docker run --rm -v "$PWD:$PWD" -w "$PWD" "$DOCKER_IMAGE" sh -c '
             set -e
             apk add --no-cache file >/dev/null
-            # The newest scala-version target is the just-built one; deterministic in CI because
-            # each runner is fresh.
-            bin=$(ls -1d modules/tests/native/target/scala-*/kufuli-tests-test 2>/dev/null | sort -V | tail -1)
+            # sbt 2.x + sbt-snx emit the native binary under target/out; the newest scala-version
+            # target is the just-built one, deterministic in CI because each runner is fresh.
+            bin=$(find target/out -type f -name 'kufuli-tests-test' 2>/dev/null | sort -V | tail -1)
             if [ -z "$bin" ]; then
               echo "::error::no Native test binary located for static-linkage assertion"
               exit 1

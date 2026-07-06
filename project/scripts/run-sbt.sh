@@ -44,6 +44,8 @@ for env_var in TERM CI SBT_OPTS KUFULI_STATIC_LINK; do
   fi
 done
 
+# sbt-version resolves the build version via git; safe.directory '*' clears git's
+# dubious-ownership guard on the bind-mounted repo (caller UID != container root).
 exec docker run "${docker_args[@]}" --entrypoint sh "$DOCKER_IMAGE" -c \
-  'mkdir -p "$HOME" && exec sbt "$@"' \
+  'mkdir -p "$HOME" && git config --global --add safe.directory "*" && exec sbt "$@"' \
   sh ${extra_args[@]+"${extra_args[@]}"} "$@"
