@@ -123,7 +123,7 @@ val `kufuli-tests` =
       Seq(scala3),
       Seq.empty[VirtualAxis],
       (p: Project) =>
-        p.settings(NativePlatformPlugin.schemeSettings ++ testDir("extended") ++ testDir("pq"))
+        p.settings(NativePlatformPlugin.testLinkSettings ++ testDir("extended") ++ testDir("pq"))
           .dependsOn(
             kufuli.native(scala3),
             `kufuli-jose`.native(scala3),
