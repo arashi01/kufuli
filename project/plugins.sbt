@@ -1,22 +1,15 @@
-val scalaNativeLibraryVersion = "0.5.12"
-val scalaNativeVersion = settingKey[String]("Scala Native version")
-scalaNativeVersion := scalaNativeLibraryVersion
-enablePlugins(BuildInfoPlugin)
-buildInfoKeys := Seq[BuildInfoKey](scalaNativeVersion)
-buildInfoObject := "BuildInfo"
+addSbtPlugin("africa.shuwari" % "sbt-snx" % "0.3.0")
+addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0")
 
-addSbtPlugin("org.portable-scala" % "sbt-scalajs-crossproject" % "1.3.2")
-addSbtPlugin("org.portable-scala" % "sbt-scala-native-crossproject" % "1.3.2")
-addSbtPlugin("org.scala-native" % "sbt-scala-native" % scalaNativeLibraryVersion)
-addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.21.0")
+addSbtPlugin("africa.shuwari" % "sbt-version" % "0.8.0")
 
-addSbtPlugin("com.github.sbt" % "sbt-dynver" % "5.1.1")
-
-addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.5.6")
-addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.14.6")
+addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.6.1")
+addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.14.7")
 addSbtPlugin("com.github.sbt" % "sbt-header" % "5.11.0")
 
 addSbtPlugin("com.github.sbt" % "sbt-pgp" % "2.3.1")
 
-libraryDependencies += "io.github.gmkumar2005" %% "scala-js-env-playwright" % "0.1.18"
-libraryDependencies += "com.microsoft.playwright" % "playwright" % "1.58.0"
+// // TODO: Remove when upstream supports sbt 2.0.0
+lazy val root = (project in file(".")).dependsOn(playwrightEnv)
+lazy val playwrightEnv =
+  RootProject(uri("https://github.com/arashi01/scala-js-env-playwright.git#sbt-2"))

@@ -41,9 +41,9 @@ object WycheproofPlugin extends AutoPlugin {
   override def projectSettings: Seq[Setting[?]] = Seq(
     wycheproofVectorFiles := Seq.empty,
     wycheproofTargetPackage := "wycheproof"
-  ) ++ inConfig(Test)(
+  ) ++ ProjectExtra.inConfig(Test)(
     Seq(
-      wycheproofGenerate := {
+      wycheproofGenerate := Def.uncached {
         val files = wycheproofVectorFiles.value
         val targetPkg = wycheproofTargetPackage.value
         val outDir = sourceManaged.value / "wycheproof"

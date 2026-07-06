@@ -21,8 +21,10 @@ if [[ -n "${SBT_PROPS:-}" ]]; then
   read -ra extra_args <<< "$SBT_PROPS"
 fi
 
+# --server: sbt-2 builds otherwise delegate to sbtn, whose runner scripts mis-detect musl
+# (OSTYPE "linux-gnu" checks) and hardcode a stale client version; the JVM path boots sbt.version.
 if [[ -z "${DOCKER_IMAGE:-}" ]]; then
-  exec sbt ${extra_args[@]+"${extra_args[@]}"} "$@"
+  exec sbt --server ${extra_args[@]+"${extra_args[@]}"} "$@"
 fi
 
 mkdir -p "$HOME/.cache/coursier" "$HOME/.cache/sbt"
@@ -44,6 +46,8 @@ for env_var in TERM CI SBT_OPTS KUFULI_STATIC_LINK; do
   fi
 done
 
+# sbt-version resolves the build version via git; safe.directory '*' clears git's
+# dubious-ownership guard on the bind-mounted repo (caller UID != container root).
 exec docker run "${docker_args[@]}" --entrypoint sh "$DOCKER_IMAGE" -c \
-  'mkdir -p "$HOME" && exec sbt "$@"' \
+  'mkdir -p "$HOME" && git config --global --add safe.directory "*" && exec sbt --server "$@"' \
   sh ${extra_args[@]+"${extra_args[@]}"} "$@"
