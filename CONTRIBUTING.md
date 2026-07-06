@@ -1,104 +1,81 @@
 # Contributing to kufuli
 
-## Build Requirements
+## Build requirements
 
-- JDK 21+
-- sbt 1.12+
-- Node.js 22+ (for Scala.js tests)
-- OpenSSL development headers (required for Native on Linux)
-- Playwright browsers
-- Git (for external source checkout on first build)
+- JDK 25+.
+- sbt 2.x (pinned in `project/build.properties`).
+- Node.js 24+ (for the Scala.js targets).
+- A C toolchain for Scala Native: clang and, on Windows, the MSVC toolchain via `vcvarsall.bat`. The
+  native backend links aws-lc, provisioned by sbt-snx from `vendor/`.
+- Playwright browsers, for the browser test target.
+- Git, for the vendored submodules.
 
-## First Build
+## First build
 
-Vendored build-time dependencies (Wycheproof test vectors, PHC Argon2 reference C source) live
-as git submodules under `vendor/`. Either clone with `git clone --recursive`, or after a plain
-clone run:
+Wycheproof test vectors and the PHC Argon2 reference C source are pinned as git submodules under
+`vendor/`. Clone with `--recursive`, or after a plain clone run:
 
 ```
 git submodule update --init
 ```
 
+The per-platform aggregators run every module's tests on one target, as CI does:
+
 ```
-sbt kufuli-jvm/test        # All JVM tests (core unit + integration)
-sbt kufuli-js/test         # All JS tests (core unit + Node.js + browser via Playwright)
-sbt kufuli-native/test     # All Native tests (core unit + platform integration)
+sbt kufuli-jvm/test        # JVM
+sbt kufuli-js/test         # Node.js and browser
+sbt kufuli-native/test     # Scala Native
 ```
 
-These aggregate projects run tests for all modules on the target platform in a single command,
-matching CI. `kufuli-js` aggregates both Node.js and browser (`kufuli-zio-browser`) tests.
+sbt caches test runs; use `<project>/testOnly *` to force a full re-run.
 
-## Project Structure
+## Project structure
 
 ```
 modules/
-  core/              Pure types, algorithm models, security validation (no ZIO, no platform)
-  zio/               ZIO typeclasses (shared) + platform backends (jvm/js/native)
-  zio-browser/       Web Crypto SubtleCrypto backend (Scala.js, browser)
-  tests/         Integration tests (shared + per-platform instantiation)
-  testkit/           Abstract test suites, RFC vectors, shared test utilities
-  js-shared/         Shared JS utilities (Node.js + browser)
+  core/       Primitives, recipes, key rotation, kufuli.unsafe. Shared source in scala/;
+              per-platform KeyRepr and capability aliases in scalajvm/, scalajs-node/,
+              scalajs-browser/, and scalanative/.
+  jose/       JWT/JWS/JWE/JWK(S), COSE key import.
+  password/   Argon2id and the PHC format.
+  x509/       Path validation and stapled-OCSP verification.
+  tests/      Cross-platform test suites (see below).
 
 project/
-  WycheproofPlugin.scala  Embeds Wycheproof JSON as generated Scala source
-  NativePlatformPlugin.scala  Host detection (OS, libc, static-link) for Native crypto linking
+  NativePlatformPlugin.scala   Host detection and native linking wiring.
+  WebCryptoAxis.scala          The virtual axis distinguishing the browser JS row from Node.
+  WycheproofPlugin.scala       Embeds Wycheproof JSON vectors as generated Scala source.
 
-vendor/                Git submodules for build-time dependencies
-  wycheproof/          Wycheproof test vectors (Apache-2.0)
-  phc-winner-argon2/   PHC Argon2 reference C source (CC0 1.0 / Apache-2.0)
+vendor/
+  wycheproof/          Wycheproof test vectors (Apache-2.0).
+  phc-winner-argon2/   PHC Argon2 reference C source (CC0 1.0 / Apache-2.0).
 ```
 
-## Test Structure
+## Test structure
 
-Tests are organised by purpose:
+The `tests` module composes capability-gated source sets, so each suite runs only where its
+dependencies exist:
 
-### Unit tests (`kufuli-core/test/`)
+- `src/test/scala` runs on all four artifacts: the pure value-layer checks, the structural misuse
+  negatives, and the core round-trip flows.
+- `src/test/extended` (JVM, Native, Node) adds the Direct-gated record-machine suites and the jose,
+  x509, and password suites.
+- `src/test/pq` (JVM, Native) adds the ML-KEM hybrid flow.
+- `src/test/node` and `src/test/browser` hold the per-artifact capability-boundary checks, proved by
+  `summon` for presence and `typeChecks` for absence.
 
-Pure tests with no platform backend or ZIO dependency. Two categories:
+Conventions for new tests:
 
-- **Internal logic:** `CryptoKeySpec`, `DigestSpec`, `SignatureSpec`, `EcdsaCodecSpec`,
-  `SignAlgorithmSpec`, `ConstantTimeSpec` - regression and behaviour tests for our code.
-- **Standards conformance (pure):** `EcParamsSpec` (FIPS 186-5 validation), `SecurityChecksSpec`
-  (NIST SP 800-131A key sizes, RFC 7518 HMAC minimums) - verification that pure validation
-  functions conform to standards.
+- Every public operation has at least one test.
+- Each algorithm carries an RFC or NIST known-answer vector and, where vectors exist, Wycheproof
+  adversarial coverage. When a standard's case is inapplicable (for example, a key below our
+  minimum), the exclusion is noted against the standard's reference.
+- A suite goes in the widest source set its dependencies allow.
 
-### Integration tests (`kufuli-tests/shared/test/`)
+## Vendor submodules
 
-Cross-platform tests that exercise the full stack through platform backends. Run on JVM, JS,
-and Native.
-
-- **RFC conformance:** `Rfc4231HmacSuite` (HMAC-SHA known-answer, RFC 4231 ss4),
-  `Rfc8032Ed25519Suite` (Ed25519 known-answer, RFC 8032 ss7.1). These verify our implementation
-  produces the exact output specified by the standard.
-- **Adversarial (Wycheproof):** `WycheproofEcdsaSuite`, `WycheproofEcdsaP1363Suite`,
-  `WycheproofEd25519Suite`, `WycheproofRsaSuite`, `WycheproofHmacSuite`. These test resistance
-  to specific attack vectors (malformed signatures, edge-case keys, etc.).
-- **Round-trip and rejection:** `CryptoTestSuite` (via `kufuli-testkit`) - sign-then-verify
-  round-trips, tampered-message rejection, wrong-key rejection, algorithm mismatch rejection.
-
-### Platform instantiation (`kufuli-tests/{jvm,js,native}/test/`)
-
-Thin adapters that extend abstract test suites with the platform-specific ZIO runtime. These
-files should contain only the `run` adapter and abstract method implementations - no test logic.
-
-### Test requirements
-
-- Every public API method must have at least one test.
-- Every supported algorithm must have at least one RFC/NIST known-answer vector AND Wycheproof
-  adversarial coverage where vectors exist.
-- All applicable test vectors from referenced standards must be implemented. If a standard
-  defines 5 test cases and 2 are inapplicable (e.g. key too short for our minimum), all 3
-  applicable cases must be present, with the exclusions documented with the RFC reference.
-- New test suites go in `shared/test/` (cross-platform) unless they test platform-specific
-  behaviour that only exists on one platform.
-
-## Vendor Submodules
-
-Build-time dependencies live as git submodules under `vendor/`. The parent commit pins each
-submodule to an exact upstream SHA - reproducible without any imperative checkout step at build
-time. Third-party licences are acknowledged in the top-level `NOTICE`.
-
-To update a pinned dependency:
+Each submodule is pinned to an exact upstream SHA by the parent commit, so the build is reproducible
+with no imperative checkout step. To update one:
 
 ```
 cd vendor/<name>
@@ -109,8 +86,10 @@ git add vendor/<name>
 git commit -m "Bump <name> to <new-sha>"
 ```
 
-Then update `NOTICE` to record the new SHA.
+Then record the new SHA in `NOTICE`.
 
-## Code Style
+## Code style
 
-Run `sbt format` before committing. The project compiles with `-Werror`, `-Yexplicit-nulls`, and all `-Wunused` flags. Test scope relaxes `-Werror` and `-Yexplicit-nulls`.
+Run `sbt format` before committing (`scalafixAll; scalafmtAll; scalafmtSbt; headerCreateAll`); `sbt
+check` is the read-only gate CI runs. Both main and test sources compile under the same strict
+regime: `-Werror`, `-Yexplicit-nulls`, and the full `-Wunused` set.

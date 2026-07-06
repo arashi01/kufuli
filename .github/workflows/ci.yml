@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [21, 25]
+        java: [25]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -68,7 +68,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [22.x, 24.x]
+        node: [24.x]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -118,9 +118,9 @@ jobs:
             runner: ubuntu-24.04-arm
             dockerImage: shuwariafrica/el10-jdk:25
             link: dynamic
-          # scala-native's musl sigaltstack/SIGSTKSZ handling (upstream PR #4934, pending release)
-          # SIGSEGVs static binaries at startup today and is fragile in dynamic mode on some hosts;
-          # alpine support is best-effort until that fix ships.
+          # scala-native's musl stack-guard handling (upstream #4934, unreleased as of 0.5.12)
+          # SIGSEGVs static binaries at the first new-thread creation (backtrace in
+          # SCALA_NATIVE_ISSUES.md §3); dynamic musl passes. Best-effort until the fix ships.
           - target: linux-musl-x86_64
             runner: ubuntu-24.04
             dockerImage: shuwariafrica/alpine-jdk:25
@@ -223,14 +223,6 @@ jobs:
 
       - name: Set up Coursier cache
         uses: coursier/cache-action@v8
-
-      - name: Install LLVM via Homebrew
-        # macOS-26 ships Xcode's clang, but scala-native 0.5.12 deprecates LLVM < 16
-        shell: bash
-        run: |
-          brew update
-          brew install llvm || true
-          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
 
       - name: Tests
         shell: bash
