@@ -3,12 +3,12 @@ name: "Integration Build"
 on:
   workflow_dispatch:
   pull_request:
-    branches: [main]
+    branches: [ main ]
     paths-ignore:
       - "**.md"
   push:
-    branches: [main]
-    tags: [v*]
+    branches: [ main ]
+    tags: [ v* ]
     paths-ignore:
       - "**.md"
 
@@ -29,17 +29,17 @@ env:
 
 jobs:
   test_jvm:
-    name: "[JVM: JDK ${{ matrix.java }}] Tests"
+    name: "jvm / jdk_${{ matrix.java }} / test"
     strategy:
       fail-fast: false
       matrix:
-        java: [25]
+        java: [ 25 ]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
@@ -57,24 +57,24 @@ jobs:
       - name: Set up Coursier cache
         uses: coursier/cache-action@v8
 
-      - name: Tests
+      - name: Execute Tests
         run: ./project/scripts/run-sbt.sh "kufuli-jvm/test"
 
-      - name: Package
+      - name: Package Artefacts
         run: ./project/scripts/run-sbt.sh "kufuli-jvm/package"
 
   test_js:
-    name: "[JS: Node.js ${{ matrix.node }}] Tests"
+    name: "js / node_${{ matrix.node }} / test"
     strategy:
       fail-fast: false
       matrix:
-        node: [24.x]
+        node: [ 24.x ]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
@@ -105,7 +105,7 @@ jobs:
         run: ./project/scripts/run-sbt.sh "kufuli-js/package"
 
   test_native_linux:
-    name: "[Native: ${{ matrix.target }}] Tests"
+    name: "native / ${{ matrix.target }} / test"
     strategy:
       fail-fast: false
       matrix:
@@ -150,7 +150,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
@@ -158,12 +158,12 @@ jobs:
       - name: Set up Coursier cache
         uses: coursier/cache-action@v8
 
-      - name: Tests
+      - name: Execute Tests
         id: tests
         shell: bash
         run: ./project/scripts/run-sbt.sh "kufuli-native/test"
 
-      - name: Package
+      - name: Package Artefacts
         if: matrix.link == 'dynamic'
         shell: bash
         run: ./project/scripts/run-sbt.sh "kufuli-native/package"
@@ -200,13 +200,13 @@ jobs:
           '
 
   test_native_macos:
-    name: "[Native: macOS aarch64] Tests"
+    name: "native / macos_aarch64 / test"
     runs-on: macos-26
     timeout-minutes: 45
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
@@ -224,16 +224,16 @@ jobs:
       - name: Set up Coursier cache
         uses: coursier/cache-action@v8
 
-      - name: Tests
+      - name: Execute Tests
         shell: bash
         run: ./project/scripts/run-sbt.sh "kufuli-native/test"
 
-      - name: Package
+      - name: Package Artefacts
         shell: bash
         run: ./project/scripts/run-sbt.sh "kufuli-native/package"
 
   test_native_windows:
-    name: "[Native: Windows ${{ matrix.arch }}] Tests"
+    name: "native / windows_${{ matrix.arch }} / test"
     strategy:
       fail-fast: false
       matrix:
@@ -249,7 +249,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
@@ -278,11 +278,11 @@ jobs:
             ForEach-Object { if ($_ -match '^([^=]+)=(.*)$') { "$($Matches[1])=$($Matches[2])" } } |
             Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: Tests
+      - name: Execute Tests
         shell: bash
         run: ./project/scripts/run-sbt.sh "kufuli-native/test"
 
-      - name: Package
+      - name: Package Artefacts
         shell: bash
         run: ./project/scripts/run-sbt.sh "kufuli-native/package"
 
@@ -293,7 +293,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
@@ -356,7 +356,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
@@ -387,14 +387,14 @@ jobs:
 
   release:
     name: Create GitHub Release
-    needs: [publish]
+    needs: [ publish ]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
@@ -421,7 +421,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
