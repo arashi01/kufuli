@@ -613,7 +613,7 @@ object SharedSecret:
     def deriveKey[A <: SymmetricAlgorithm](hash: Sha2, salt: Slice, info: Slice, as: SymmetricSpec[A])(using
       Kdf
     ): UEffIO[SecretKey[A]] =
-      HKDF.extract(hash, salt, z).flatMap(prk => HKDF.expandKey(hash, prk, info, as).flatMap(k => prk.destroy.map(_ => k)))
+      HKDF.extractFrom(hash, salt, z).flatMap(prk => HKDF.expandKey(hash, prk, info, as).flatMap(k => prk.destroy.map(_ => k)))
   end extension
 end SharedSecret
 
@@ -867,6 +867,11 @@ object HKDF:
   /** Extract from a [[SharedSecret]] without exposing it — the agree-then-derive path. */
   @targetName("extractSecret")
   def extract(hash: Sha2, salt: Slice, ikm: SharedSecret)(using k: Kdf): UEffIO[Prk] =
+    extractFrom(hash, salt, ikm)
+
+  // Non-overloaded internal entry: Scaladoc cannot resolve a same-file reference to an overloaded
+  // name whose sibling carries @targetName, so internal callers route through this instead.
+  private[kufuli] def extractFrom(hash: Sha2, salt: Slice, ikm: SharedSecret)(using k: Kdf): UEffIO[Prk] =
     EffIO.defer(ikm.read(s => k.extract(hash, salt, s)))
   def expand(hash: Sha2, prk: Prk, info: Slice, length: Int)(using k: Kdf): UEffIO[Slice] =
     require(length > 0 && length <= 255 * hash.length, "HKDF output length out of range")
