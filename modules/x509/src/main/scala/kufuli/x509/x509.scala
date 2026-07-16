@@ -307,7 +307,7 @@ private[x509] object X509:
   def issuerKey(spki: Array[Byte]): Option[ImportedPublicKey] =
     Der.peekSpki(Slice.of(spki)).toOption.map {
       case Der.Alg.Ed     => ImportedPublicKey.Ed(PublicKey.unsafe(keyRepr(spki)))
-      case Der.Alg.X      => ImportedPublicKey.Ed(PublicKey.unsafe(keyRepr(spki)))
+      case Der.Alg.X      => ImportedPublicKey.X(PublicKey.unsafe(keyRepr(spki)))
       case Der.Alg.EcP256 => ImportedPublicKey.EcP256(PublicKey.unsafe(keyRepr(spki)))
       case Der.Alg.EcP384 => ImportedPublicKey.EcP384(PublicKey.unsafe(keyRepr(spki)))
       case Der.Alg.EcP521 => ImportedPublicKey.EcP521(PublicKey.unsafe(keyRepr(spki)))

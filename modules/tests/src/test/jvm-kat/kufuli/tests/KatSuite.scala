@@ -167,6 +167,37 @@ class KatSuite extends munit.CatsEffectSuite:
     yield ()
   }
 
+  // Nested custom claims must survive sign -> verify verbatim: DPoP binds `cnf.jkt` and OIDC
+  // back-channel logout carries a nested `events` object.
+  test("JOSE: nested + array custom claims round-trip through sign/verify (jsoniter)") {
+    val cnf = JoseValue.Obj(Map("jkt" -> JoseValue.Str("NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs")))
+    val events = JoseValue.Obj(Map("http://schemas.openid.net/event/backchannel-logout" -> JoseValue.Obj(Map.empty)))
+    val claims = JWT.Claims.empty
+      .subject("u")
+      .audience("api")
+      .expiresIn(1.hour)
+      .claim("cnf", cnf)
+      .claim("events", events)
+      .claim("scope", JoseValue.Arr(List(JoseValue.Str("read"), JoseValue.Str("write"))))
+      .claim("n", JoseValue.Num(42))
+      .claim("b", JoseValue.Bool(true))
+      .claim("z", JoseValue.Null)
+    for
+      ed <- Ed25519.generate.absolve
+      jwk <- expectRight("jwk")(JWK.of("k", ed.publicKey))
+      tok <- JWT.sign(claims, EdDSA, "k", now)(ed.privateKey).absolve
+      v <- JWT.verify(tok.compact, JWKS.of(jwk), JWT.Policy("api", Set(EdDSA)), now).either
+      got = v.toOption.map(_.claims)
+      _ <- check(got.flatMap(_.get("cnf")).contains(cnf), "nested cnf object round-trips")
+      _ <- check(got.flatMap(_.get("events")).contains(events), "nested empty-object events round-trips")
+      _ <- check(got.flatMap(_.get("scope")).contains(JoseValue.Arr(List(JoseValue.Str("read"), JoseValue.Str("write")))), "array claim")
+      _ <- check(got.flatMap(_.get("n")).contains(JoseValue.Num(42)), "number claim")
+      _ <- check(got.flatMap(_.get("b")).contains(JoseValue.Bool(true)), "bool claim")
+      _ <- check(got.flatMap(_.get("z")).contains(JoseValue.Null), "null claim")
+    yield ()
+    end for
+  }
+
   test("password: Argon2id login flow (PHC parse, verify, policy rehash)") {
     for
       stored <- "correct horse".hash(Argon2Params.interactive).absolve
