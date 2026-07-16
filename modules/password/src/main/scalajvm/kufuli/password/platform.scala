@@ -18,19 +18,31 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-package kufuli.tests
+// JVM Argon2id provider (BouncyCastle). BouncyCastle is password-module + JVM-only; core never
+// depends on it. Argon2id is memory-hard (ms-class), so hashing runs on the blocking pool.
+package kufuli.password
 
-import scala.reflect.TypeTest
-
+import boilerplate.Slice
 import boilerplate.effect.EffIO
-import cats.effect.IO
+import boilerplate.effect.UEffIO
+import org.bouncycastle.crypto.generators.Argon2BytesGenerator
+import org.bouncycastle.crypto.params.Argon2Parameters
 
-// IO helpers for the flow suites.
-object support:
-  def expectRight[E <: Throwable, A](label: String)(e: EffIO[E, A])(using TypeTest[Throwable, E]): IO[A] =
-    e.either.flatMap {
-      case Right(a)  => IO.pure(a)
-      case Left(err) => IO.raiseError(new AssertionError(s"$label: unexpected error $err"))
-    }
-  def check(cond: Boolean, label: String): IO[Unit] =
-    if cond then IO.unit else IO.raiseError(new AssertionError(label))
+private[password] trait Argon2Platform:
+  given Argon2 = new Argon2:
+    def hash(password: Slice, salt: Slice, params: Argon2Params): UEffIO[Array[Byte]] =
+      EffIO.suspendBlocking {
+        val p = new Argon2Parameters.Builder(Argon2Parameters.ARGON2_id)
+          .withVersion(Argon2Parameters.ARGON2_VERSION_13)
+          .withIterations(params.iterations)
+          .withMemoryAsKB(params.memoryKib)
+          .withParallelism(params.parallelism)
+          .withSalt(salt.toArray)
+          .build()
+        val gen = new Argon2BytesGenerator
+        gen.init(p)
+        val out = new Array[Byte](32)
+        val _ = gen.generateBytes(password.toArray, out)
+        out
+      }
+end Argon2Platform

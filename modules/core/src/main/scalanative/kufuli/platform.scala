@@ -18,15 +18,31 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+// Native backend unit (aws-lc): bytes-backed keys; the primary platform carries the fullest set.
+// XChaCha20-Poly1305 and AES-256-GCM-SIV are aws-lc EVP_AEADs; ML-KEM is FIPS 203 in aws-lc. This
+// file is the Native capability table; instance bodies are the stub backend until the aws-lc pass
+// (K-2') replaces them family by family.
 package kufuli
 
-// Native backend (aws-lc), the primary platform with the fullest capability set: XChaCha20-Poly1305
-// and AES-256-GCM-SIV are aws-lc EVP_AEADs, and ML-KEM is FIPS 203 in aws-lc.
-private[kufuli] type KeyRepr = IArray[Byte]
-type DirectCapable = true
-type ChaChaCapable = true
-type KwpCapable = true
-type PasswordCapable = true
-type MlKemCapable = true
-type XChaChaCapable = true
-type GcmSivCapable = true
+private[kufuli] type KeyRepr = Array[Byte]
+private[kufuli] def keyRepr(bytes: Array[Byte]): KeyRepr = bytes
+private[kufuli] def keyBytes(r: KeyRepr): Array[Byte] = r
+
+private[kufuli] trait RandomPlatform extends stubs.RandomDefault
+private[kufuli] trait AeadPlatform extends stubs.AeadUniversal, stubs.AeadChaCha, stubs.AeadMisuseResistant
+private[kufuli] trait MacPlatform extends stubs.MacAll
+private[kufuli] trait SignerPlatform extends stubs.SignersAll
+private[kufuli] trait VerifierPlatform extends stubs.VerifiersAll
+private[kufuli] trait AgreementPlatform extends stubs.AgreementAll
+private[kufuli] trait KemPlatform extends stubs.KemAll
+private[kufuli] trait WrapPlatform extends stubs.WrapKw, stubs.WrapKwp
+private[kufuli] trait KdfPlatform extends stubs.KdfDefault
+private[kufuli] trait HashPlatform extends stubs.HashAll
+private[kufuli] trait HashingPlatform extends stubs.HashingSync
+private[kufuli] trait CipheringPlatform extends stubs.CipheringUniversal, stubs.CipheringChaCha, stubs.CipheringMisuseResistant
+private[kufuli] trait OaepPlatform extends stubs.OaepDefault
+private[kufuli] trait EdKeysPlatform extends stubs.EdKeysBytes
+private[kufuli] trait XKeysPlatform extends stubs.XKeysBytes
+private[kufuli] trait EcKeysPlatform extends stubs.EcKeysBytes
+private[kufuli] trait RsaKeysPlatform extends stubs.RsaKeysBytes
+private[kufuli] trait KemKeysPlatform extends stubs.KemKeysAll

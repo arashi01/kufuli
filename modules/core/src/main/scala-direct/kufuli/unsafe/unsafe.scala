@@ -18,24 +18,22 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+// kufuli.unsafe — the expert floor: raw block/keystream/header-protection primitives that trade
+// away misuse-resistance (every invariant is the caller's). The package ships only in the
+// synchronous artifacts (module-level absence in the browser). The primitive bodies below are
+// placeholders with the final Slice-speaking shape; the platform passes (K-2' aws-lc, K-3' node,
+// and JVM/JCA) replace them with real AES-ECB blocks and ChaCha20 keystreams.
 package kufuli.unsafe
 
 import boilerplate.Slice
 import cats.effect.IO
 import cats.effect.Resource
 
-import kufuli.Direct
-
-// The expert floor: primitives that trade away misuse-resistance, so every invariant is the
-// caller's. Direct-gated, synchronous, and speaks Slice like the record tier; keys are raw bytes
-// because a caller at this level already holds KDF output.
-
 /** Raw AES-ECB single block (the QUIC AES header-protection primitive). Exactly 16 bytes. */
 trait AesBlock:
   def encrypt(src: Slice, dst: Slice): Unit
 object AesBlock:
-  def of(key: Array[Byte])(using d: Direct): Resource[IO, AesBlock] =
-    val _ = d
+  def of(key: Array[Byte]): Resource[IO, AesBlock] =
     require(key.length == 16 || key.length == 24 || key.length == 32, "AES key must be 16/24/32 bytes")
     Resource.pure(
       new AesBlock:
@@ -48,26 +46,24 @@ object AesBlock:
 trait ChaCha20Stream:
   def keystream(dst: Slice, nonce: Slice, counter: Int): Unit
 object ChaCha20:
-  def of(key: Array[Byte])(using d: Direct): Resource[IO, ChaCha20Stream] =
-    val _ = d
+  def of(key: Array[Byte]): Resource[IO, ChaCha20Stream] =
     require(key.length == 32, "ChaCha20 key must be 32 bytes")
     Resource.pure(
       new ChaCha20Stream:
         def keystream(dst: Slice, nonce: Slice, counter: Int): Unit =
-          val _ = counter
           require(nonce.length == 12, "ChaCha20 nonce must be 12 bytes")
           val filler = Slice.of(Array.fill[Byte](dst.length)(0x42))
           val _ = filler.copyInto(dst)
     )
-end ChaCha20
 
-/** QUIC header protection: derives the 5-byte mask from a 16-byte ciphertext sample (RFC 9001).
-  * Applying the mask is the caller's bit surgery.
+/** QUIC header protection: the 5-byte mask from a 16-byte ciphertext sample (RFC 9001 section 5.4).
+  * Applying the mask (first-byte/packet-number bit surgery) is protocol logic and stays downstream;
+  * so do QUIC version constants.
   */
 trait HeaderProtection:
   def mask(sample: Slice, out: Slice): Unit // writes 5 bytes at out's start
 object HeaderProtection:
-  def aes(hpKey: Array[Byte])(using Direct): Resource[IO, HeaderProtection] =
+  def aes(hpKey: Array[Byte]): Resource[IO, HeaderProtection] =
     AesBlock
       .of(hpKey)
       .map(block =>
@@ -78,7 +74,7 @@ object HeaderProtection:
             block.encrypt(sample.take(16), full)
             val _ = full.take(5).copyInto(out)
       )
-  def chacha(hpKey: Array[Byte])(using Direct): Resource[IO, HeaderProtection] =
+  def chacha(hpKey: Array[Byte]): Resource[IO, HeaderProtection] =
     ChaCha20
       .of(hpKey)
       .map(stream =>

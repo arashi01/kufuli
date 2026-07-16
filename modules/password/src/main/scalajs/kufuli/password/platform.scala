@@ -18,19 +18,27 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-package kufuli.tests
+// Node Argon2id provider: a byte-faithful stub (deterministic, input-sensitive) until the
+// node:crypto (>= 24.7) pass (K-3') replaces the body. The PHC codec and verify decision above it
+// are real, so the login flow round-trips against this stub.
+package kufuli.password
 
-import scala.reflect.TypeTest
-
+import boilerplate.Slice
 import boilerplate.effect.EffIO
-import cats.effect.IO
+import boilerplate.effect.UEffIO
 
-// IO helpers for the flow suites.
-object support:
-  def expectRight[E <: Throwable, A](label: String)(e: EffIO[E, A])(using TypeTest[Throwable, E]): IO[A] =
-    e.either.flatMap {
-      case Right(a)  => IO.pure(a)
-      case Left(err) => IO.raiseError(new AssertionError(s"$label: unexpected error $err"))
-    }
-  def check(cond: Boolean, label: String): IO[Unit] =
-    if cond then IO.unit else IO.raiseError(new AssertionError(label))
+private[password] trait Argon2Platform:
+  given Argon2 = new Argon2:
+    def hash(password: Slice, salt: Slice, params: Argon2Params): UEffIO[Array[Byte]] =
+      EffIO.suspend(stubArgon2(password, salt, params))
+
+private def stubArgon2(password: Slice, salt: Slice, params: Argon2Params): Array[Byte] =
+  val marker = Array[Byte](params.iterations.toByte, params.parallelism.toByte, (params.memoryKib / 1024).toByte)
+  val h = Seq(password.toArray, salt.toArray, marker).flatten
+    .foldLeft(0xcbf29ce484222325L)((acc, b) => (acc ^ (b & 0xff)) * 0x100000001b3L)
+  Array.tabulate(32) { i =>
+    val z0 = h + i + 0x9e3779b97f4a7c15L
+    val z1 = (z0 ^ (z0 >>> 30)) * 0xbf58476d1ce4e5b9L
+    val z2 = (z1 ^ (z1 >>> 27)) * 0x94d049bb133111ebL
+    ((z2 ^ (z2 >>> 31)) & 0xff).toByte
+  }

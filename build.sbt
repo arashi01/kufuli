@@ -1,26 +1,40 @@
 scalaVersion := scala3
-organization := "io.github.arashi01"
+organization := "africa.shuwari"
 startYear := Some(2026)
-homepage := Some(url("https://github.com/arashi01/kufuli"))
+homepage := Some(url("https://github.com/shuwariafrica/kufuli"))
 semanticdbEnabled := true
 versionScheme := Some("semver-spec")
 licenses := List("MIT" -> url("https://opensource.org/licenses/MIT"))
 scmInfo := Some(
   ScmInfo(
-    url("https://github.com/arashi01/kufuli"),
-    "scm:git:https://github.com/arashi01/kufuli.git",
-    Some("scm:git:git@github.com:arashi01/kufuli.git")
+    url("https://github.com/shuwariafrica/kufuli"),
+    "scm:git:https://github.com/shuwariafrica/kufuli.git",
+    Some("scm:git:git@github.com:shuwariafrica/kufuli.git")
   )
 )
+
+// kufuli requires JDK 25 or newer: the JVM backend uses JCA ML-KEM (JEP 496, in-JDK from 24) and
+// the ecosystem's LTS floor is 25.
+initialize := {
+  val _ = initialize.value
+  val running = sys.props.getOrElse("java.specification.version", "0")
+  val major = running.takeWhile(_.isDigit).toIntOption.getOrElse(0)
+  assert(major >= 25, s"kufuli requires JDK 25 or newer (JCA ML-KEM, JEP 496); found $running.")
+}
 
 formattingSettings
 
 def scala3 = "3.8.4"
-val boilerplate: ModuleID = "io.github.arashi01" %% "boilerplate" % "0.8.5"
-val boilerplateEffect: ModuleID = "io.github.arashi01" %% "boilerplate-effect" % "0.8.5"
+val boilerplate: ModuleID = "africa.shuwari" %% "boilerplate" % "0.10.0"
+val boilerplateEffect: ModuleID = "africa.shuwari" %% "boilerplate-effect" % "0.10.0"
+val jsoniter: ModuleID = "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.39.1"
+val bouncycastle: ModuleID = "org.bouncycastle" % "bcprov-jdk18on" % "1.84"
 val munit: ModuleID = "org.scalameta" %% "munit" % "1.3.0"
 val `munit-cats-effect`: ModuleID = "org.typelevel" %% "munit-cats-effect" % "2.2.0"
 
+// The JVM row wires the real JCA backend (`scalajvm`); the other three rows share the byte-faithful
+// stub backend (`scala-stub`). `kufuli.unsafe` ships only in the synchronous artifacts, so
+// `scala-direct` joins every row except the browser (module-level absence there).
 val kufuli =
   projectMatrix
     .in(file("modules/core"))
@@ -29,10 +43,14 @@ val kufuli =
     .settings(publishSettings)
     .settings(description := "Cross-platform cryptographic primitives, recipes, and rotation for Scala 3 on cats-effect")
     .settings(libraryDependencies ++= Seq(boilerplate, boilerplateEffect))
-    .jvmPlatform(Seq(scala3))
-    .jsPlatform(Seq(scala3), jsSettings ++ jsNodeSourceDirs)
-    .jsPlatform(Seq(scala3), Seq(WebCryptoAxis), (p: Project) => p.settings(jsSettings ++ jsBrowserSettings("kufuli")))
-    .snxPlatform(Seq(scala3), NativePlatformPlugin.schemeSettings)
+    .jvmPlatform(Seq(scala3), coreDirectDir)
+    .jsPlatform(Seq(scala3), jsSettings ++ jsNodeSourceDirs ++ coreStubDir ++ coreDirectDir)
+    .jsPlatform(
+      Seq(scala3),
+      Seq(WebCryptoAxis),
+      (p: Project) => p.settings(jsSettings ++ jsBrowserSettings("kufuli") ++ coreStubDir)
+    )
+    .snxPlatform(Seq(scala3), NativePlatformPlugin.schemeSettings ++ coreStubDir ++ coreDirectDir)
 
 val `kufuli-jose` =
   projectMatrix
@@ -41,7 +59,7 @@ val `kufuli-jose` =
     .settings(fileHeaderSettings)
     .settings(publishSettings)
     .settings(description := "JOSE (JWT/JWS/JWE/JWK/COSE) over kufuli")
-    .settings(libraryDependencies ++= Seq(boilerplate, boilerplateEffect))
+    .settings(libraryDependencies ++= Seq(boilerplate, boilerplateEffect, jsoniter))
     .jvmPlatform(Seq(scala3), Seq.empty[VirtualAxis], (p: Project) => p.dependsOn(kufuli.jvm(scala3)))
     .jsPlatform(Seq(scala3), Seq.empty[VirtualAxis], (p: Project) => p.settings(jsSettings).dependsOn(kufuli.js(scala3)))
     .snxPlatform(
@@ -58,7 +76,12 @@ val `kufuli-password` =
     .settings(publishSettings)
     .settings(description := "Argon2id password hashing (PHC codec, policy rehash) over kufuli")
     .settings(libraryDependencies ++= Seq(boilerplate, boilerplateEffect))
-    .jvmPlatform(Seq(scala3), Seq.empty[VirtualAxis], (p: Project) => p.dependsOn(kufuli.jvm(scala3)))
+    // BouncyCastle stays password-module + JVM-only: the Argon2id provider for the JVM backend.
+    .jvmPlatform(
+      Seq(scala3),
+      Seq.empty[VirtualAxis],
+      (p: Project) => p.settings(libraryDependencies += bouncycastle).dependsOn(kufuli.jvm(scala3))
+    )
     .jsPlatform(Seq(scala3), Seq.empty[VirtualAxis], (p: Project) => p.settings(jsSettings).dependsOn(kufuli.js(scala3)))
     .snxPlatform(
       Seq(scala3),
@@ -102,7 +125,7 @@ val `kufuli-tests` =
       Seq(scala3),
       Seq.empty[VirtualAxis],
       (p: Project) =>
-        p.settings(testDir("extended") ++ testDir("pq"))
+        p.settings(testDir("extended") ++ testDir("pq") ++ testDir("jvm-kat"))
           .dependsOn(kufuli.jvm(scala3), `kufuli-jose`.jvm(scala3), `kufuli-x509`.jvm(scala3), `kufuli-password`.jvm(scala3))
     )
     .jsPlatform(
@@ -177,6 +200,13 @@ def jsNodeSourceDirs: List[Setting[?]] = List(
   Compile / unmanagedSourceDirectories += (Compile / sourceDirectory).value / "scalajs-node",
   Test / unmanagedSourceDirectories += (Test / sourceDirectory).value / "scalajs-node"
 )
+
+// Core-only extra source sets: the stub backend (non-JVM rows) and the synchronous `unsafe` floor
+// (non-browser rows).
+def coreStubDir: List[Setting[?]] =
+  List(Compile / unmanagedSourceDirectories += (Compile / sourceDirectory).value / "scala-stub")
+def coreDirectDir: List[Setting[?]] =
+  List(Compile / unmanagedSourceDirectories += (Compile / sourceDirectory).value / "scala-direct")
 def jsBrowserSettings(base: String): List[Setting[?]] = List(
   moduleName := s"$base-browser",
   Compile / unmanagedSourceDirectories += (Compile / sourceDirectory).value / "scalajs-browser",
@@ -215,6 +245,7 @@ def baseCompilerOptions = List(
 
 def compilerOptions = baseCompilerOptions ++ List(
   "-Yexplicit-nulls",
+  "-Wsafe-init",
   "-Xcheck-macros",
   "-Werror"
 )
