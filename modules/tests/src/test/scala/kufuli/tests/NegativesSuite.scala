@@ -24,15 +24,16 @@ import scala.compiletime.testing.typeChecks
 
 import kufuli.*
 
-// STRUCTURAL misuse rejection, cross-module (opaque tags are abstract here). Each assert is a safety
-// guarantee; a failure means the type system stopped enforcing it. The jose-pairing negative lives
-// in JoseSuite; the capability-subset negatives live in the node/browser subset suites.
-object coreNegatives:
-  // typed placeholders referenced ONLY inside typeChecks strings (compile-time; never evaluated)
+// Structural misuse rejection, cross-module (the opaque tags are abstract here, so these hold on
+// every unit independent of instance presence). Each assert is a design safety guarantee; a failure
+// means the type system stopped enforcing it.
+class NegativesSuite extends munit.FunSuite:
   def aeadKey: SecretKey[AesGcm256] = ???
   def aeadKey128: SecretKey[AesGcm128] = ???
   def hmacKey: SecretKey[HmacSha256] = ???
+  def macRing: Keyring[HmacSha256] = ???
   def xPriv: PrivateKey[X25519] = ???
+  def edPriv: PrivateKey[Ed25519] = ???
   def edPub: PublicKey[Ed25519] = ???
   def p256Priv: PrivateKey[P256] = ???
   def p384Pub: PublicKey[P384] = ???
@@ -40,36 +41,32 @@ object coreNegatives:
   def rsaPriv: PrivateKey[Rsa] = ???
   def box128: SealedBox[AesGcm128] = ???
   def p256Sig: Signature[P256] = ???
+  def macTag: Signature[HmacSha256] = ???
   def kemPriv: PrivateKey[MlKem768] = ???
   def kemPub: PublicKey[MlKem768] = ???
 
-  def run(): Unit =
-    assert(!typeChecks("aeadKey.sign(Array.emptyByteArray)"), "an AEAD key must not be signable")
+  test("19 structural misuse patterns rejected at compile time") {
+    assert(!typeChecks("aeadKey.sign(boilerplate.Slice.empty)"), "an AEAD key must not sign")
     assert(
-      !typeChecks("aeadKey.encrypt(Array.emptyByteArray, Array.emptyByteArray, Array.emptyByteArray)"),
-      "explicit-nonce encrypt must be handle-only, never on the key"
+      !typeChecks("aeadKey.encrypt(boilerplate.Slice.empty, boilerplate.Slice.empty, boilerplate.Slice.empty, boilerplate.Slice.empty)"),
+      "record encrypt lives on the Cipher handle, never on the key"
     )
-    assert(!typeChecks("hmacKey.seal(Array.emptyByteArray)"), "an HMAC key must not seal")
-    assert(
-      !typeChecks("xPriv.sign(Array.emptyByteArray)"),
-      "X25519 must not sign - structurally (no shared family with Ed25519), not by carve-out"
-    )
+    assert(!typeChecks("hmacKey.seal(boilerplate.Slice.empty)"), "an HMAC key must not seal")
+    assert(!typeChecks("macRing.seal(boilerplate.Slice.empty)"), "a MAC keyring must not seal")
+    assert(!typeChecks("xPriv.sign(boilerplate.Slice.empty)"), "X25519 must not sign")
+    assert(!typeChecks("edPriv.agree(edPub)"), "an Ed25519 key cannot agree")
     assert(!typeChecks("xPriv.agree(edPub)"), "X25519/Ed25519 are unrelated types")
     assert(!typeChecks("p256Priv.agree(p384Pub)"), "curve mismatch must not typecheck")
-    assert(!typeChecks("ecPub.sign(Array.emptyByteArray)"), "a public key must not sign")
-    assert(
-      !typeChecks("p256Priv.sign(Array.emptyByteArray, Sha1)"),
-      "Sha1 is outside SignatureHash: weak-hash signing is unrepresentable"
-    )
-    assert(!typeChecks("rsaPriv.sign(Array.emptyByteArray)"), "RSA signing requires an explicit padding spec")
+    assert(!typeChecks("ecPub.sign(boilerplate.Slice.empty)"), "a public key must not sign")
+    assert(!typeChecks("p256Priv.sign(boilerplate.Slice.empty, Sha1)"), "Sha1 is outside Sha2")
+    assert(!typeChecks("rsaPriv.sign(boilerplate.Slice.empty)"), "RSA signing requires an explicit padding scheme")
     assert(!typeChecks("aeadKey.open(box128)"), "a box sealed under another algorithm must not open")
     assert(!typeChecks("val k: SecretKey[AesGcm256] = aeadKey128"), "algorithm tags are invariant")
-    assert(!typeChecks("edPub.verify(Array.emptyByteArray, p256Sig)"), "signature tags thread the family")
-    assert(!typeChecks("kemPriv.sign(Array.emptyByteArray)"), "a KEM key must not sign - structurally")
-    assert(!typeChecks("kemPriv.agree(kemPub)"), "KEM is encapsulation, not agreement - no agree op exists")
+    assert(!typeChecks("edPub.verify(boilerplate.Slice.empty, p256Sig)"), "signature tags thread the family")
+    assert(!typeChecks("edPub.verify(boilerplate.Slice.empty, macTag)"), "a MAC tag is not an Ed25519 signature")
+    assert(!typeChecks("kemPriv.sign(boilerplate.Slice.empty)"), "a KEM key must not sign")
+    assert(!typeChecks("kemPriv.agree(kemPub)"), "KEM is encapsulation, not agreement")
     assert(!typeChecks("ecPub.encapsulate"), "encapsulation exists only for KEM algorithms")
-  end run
-end coreNegatives
-
-class CoreNegativesSuite extends munit.FunSuite:
-  test("15 core structural misuse patterns rejected at compile time")(coreNegatives.run())
+    assert(!typeChecks("aeadKey.raw"), "symmetric keys have no raw export")
+  }
+end NegativesSuite

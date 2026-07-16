@@ -20,88 +20,123 @@
  */
 package kufuli.password
 
-import java.nio.charset.StandardCharsets
-
 import scala.annotation.targetName
 import scala.util.control.NoStackTrace
 
+import boilerplate.Slice
 import boilerplate.effect.EffIO
 import boilerplate.effect.UEffIO
 
-import kufuli.Algorithm
-import kufuli.AlgorithmSpec
-import kufuli.Supports
-
-// Argon2id password hashing, fail-safe by construction: a wrong password is a PasswordCheck result
-// rather than an error, a malformed stored hash fails at PasswordHash.of, and verify takes the
-// current policy so it can flag a rehash. The PHC string format is identical on every backend.
+import kufuli.*
 
 sealed abstract class PasswordError(message: String) extends Exception(message) with NoStackTrace derives CanEqual
-case object InvalidParams extends PasswordError("invalid Argon2 parameters")
-type InvalidParams = InvalidParams.type
-case object MalformedHash extends PasswordError("not a PHC argon2id string")
-type MalformedHash = MalformedHash.type
+sealed abstract class InvalidParams private[password] () extends PasswordError("invalid Argon2 parameters")
+case object InvalidParams extends InvalidParams
+sealed abstract class MalformedHash private[password] () extends PasswordError("not a PHC argon2id string")
+case object MalformedHash extends MalformedHash
 
-/** The Argon2id password-hashing algorithm. */
-sealed trait Argon2id extends Algorithm
-case object Argon2id extends AlgorithmSpec[Argon2id] with Argon2id:
-  given (using kufuli.PasswordCapable =:= true): Supports[Argon2id] = Supports.token(Argon2id)
-
-/** Argon2id cost parameters; use a preset or the validated [[Argon2Params$ Argon2Params.of]]. */
 final case class Argon2Params private (memoryKib: Int, iterations: Int, parallelism: Int) derives CanEqual
 object Argon2Params:
   val interactive: Argon2Params = Argon2Params(19456, 2, 1) // OWASP interactive floor
   val default: Argon2Params = Argon2Params(65536, 3, 4) // RFC 9106 second recommendation
   val sensitive: Argon2Params = Argon2Params(2097152, 1, 4) // RFC 9106 first recommendation
 
-  /** Validate caller-supplied parameters: iterations >= 1, 1 <= parallelism <= 255, and memory >= 8
-    * * parallelism KiB.
-    */
+  /** Params may come from configuration — data, so Either, not require. */
   def of(memoryKib: Int, iterations: Int, parallelism: Int): Either[InvalidParams, Argon2Params] =
-    if iterations >= 1 && parallelism >= 1 && parallelism <= 255 && memoryKib >= 8 * parallelism then
-      Right(Argon2Params(memoryKib, iterations, parallelism))
+    if iterations >= 1 && parallelism >= 1 && parallelism <= 255 && memoryKib >= 8 * parallelism
+    then Right(Argon2Params(memoryKib, iterations, parallelism))
     else Left(InvalidParams)
-end Argon2Params
 
-/** A stored PHC argon2id hash string; parse via [[PasswordHash$ PasswordHash]]. */
+/** A stored password hash in PHC string format; parse stored columns with `of`. */
 opaque type PasswordHash = String
 object PasswordHash:
-  private[kufuli] def unsafe(s: String): PasswordHash = s
+  private[password] def unsafe(s: String): PasswordHash = s
 
-  /** Parse a stored PHC argon2id string; a corrupt column fails here, not at verify. */
+  /** Parse a stored PHC string — the public constructor that makes the login flow writable.
+    * Corruption surfaces HERE, never inside `verify`.
+    */
   def of(stored: String): Either[MalformedHash, PasswordHash] =
-    if stored.startsWith("$argon2id$") then Right(stored) else Left(MalformedHash)
+    Phc.parse(stored).map(_ => stored)
   extension (h: PasswordHash) def value: String = h
 
-/** The outcome of verifying a password against a stored hash. */
 enum PasswordCheck derives CanEqual:
   case Rejected
 
-  /** `rehash` is `Some` when the stored hash is weaker than the current policy and should be
-    * recomputed.
-    */
+  /** `rehash = Some(policy)` when the stored parameters are weaker than the current policy. */
   case Verified(rehash: Option[Argon2Params])
 
-extension (pw: Array[Byte])
-  /** Hash `pw` under `params`, yielding a PHC string. */
-  def hash(params: Argon2Params)(using ev: Supports[Argon2id]): UEffIO[PasswordHash] =
-    val _ = (pw, params, ev)
-    EffIO.succeed(PasswordHash.unsafe("$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA"))
+/** The backend memory-hard primitive; everything else (PHC codec, salt generation, the verify
+  * decision, the one constant-time compare) is shared code above it.
+  */
+@annotation.implicitNotFound("Argon2id is not provided by this kufuli backend (JVM = BouncyCastle, Native = libargon2, Node >= 24.7; the browser ships no password module)")
+trait Argon2:
+  def hash(password: Slice, salt: Slice, params: Argon2Params): UEffIO[Array[Byte]]
 
-  /** Check `pw` against a stored hash; a `Verified` result carries a rehash recommendation measured
-    * against `policy`.
+// The provider is per-platform (JVM = BouncyCastle, Native = libargon2, Node >= 24.7) but its
+// presence is uniform across the module's platforms; the companion extends a per-platform trait
+// supplying the instance, exactly as the core operation families do.
+object Argon2 extends Argon2Platform
+
+// PHC string codec (one audited site; providers are KAT-verified against it). PHC B64 is the
+// STANDARD alphabet, unpadded.
+private[password] object Phc:
+  final case class Parsed(params: Argon2Params, salt: Array[Byte], hash: Array[Byte])
+  def parse(s: String): Either[MalformedHash, Parsed] =
+    s.split('$') match
+      case Array("", "argon2id", "v=19", p, saltB64, hashB64) =>
+        val kv = p
+          .split(',')
+          .flatMap { part =>
+            part.split('=') match
+              case Array(k, v) => v.toIntOption.map(k -> _)
+              case _           => None
+          }
+          .toMap
+        (for
+          m <- kv.get("m")
+          t <- kv.get("t")
+          par <- kv.get("p")
+          params <- Argon2Params.of(m, t, par).toOption
+          salt <- b64(saltB64)
+          hash <- b64(hashB64)
+        yield Parsed(params, salt, hash)).toRight(MalformedHash)
+      case _ => Left(MalformedHash)
+  def emit(params: Argon2Params, salt: Array[Byte], hash: Array[Byte]): String =
+    s"$$argon2id$$v=19$$m=${params.memoryKib},t=${params.iterations},p=${params.parallelism}$$${b64e(salt)}$$${b64e(hash)}"
+  private def b64(s: String): Option[Array[Byte]] =
+    Base64.decode(s, Base64.stdInverse, padded = false).toOption
+  private def b64e(b: Array[Byte]): String = Base64.encode(b, Base64.stdAlphabet, pad = false)
+end Phc
+
+extension (pw: Array[Byte])
+  /** Hash under `params` with a fresh CSPRNG salt; the result is the PHC string for storage. */
+  def hash(params: Argon2Params)(using a: Argon2, r: Random): UEffIO[PasswordHash] =
+    r.bytes(16).flatMap { s =>
+      val salt = s.toArray
+      a.hash(Slice.of(pw), Slice.of(salt), params).map(h => PasswordHash.unsafe(Phc.emit(params, salt, h)))
+    }
+
+  /** Recompute against the stored salt/params and compare constant-time. `rehash` recommends the
+    * CURRENT policy when the stored parameters are weaker in any dimension.
     */
-  def verify(against: PasswordHash, policy: Argon2Params)(using ev: Supports[Argon2id]): UEffIO[PasswordCheck] =
-    val _ = (pw, against, ev)
-    EffIO.succeed(PasswordCheck.Verified(Option.when(Argon2Params.interactive != policy)(policy)))
+  def verify(against: PasswordHash, policy: Argon2Params)(using a: Argon2): UEffIO[PasswordCheck] =
+    val p = Phc.parse(against).toOption.get // validated at construction (PasswordHash.of)
+    a.hash(Slice.of(pw), Slice.of(p.salt), p.params).map { computed =>
+      if !Slice.of(computed).constantTimeEquals(Slice.of(p.hash)) then PasswordCheck.Rejected
+      else
+        val weaker =
+          p.params.memoryKib < policy.memoryKib || p.params.iterations < policy.iterations ||
+            p.params.parallelism < policy.parallelism
+        PasswordCheck.Verified(Option.when(weaker)(policy))
+    }
 end extension
 
-// String input is encoded as UTF-8 with no normalisation; applying RFC 8265 OpaqueString, where
-// wanted, is the caller's responsibility.
+// The 99% case arrives as a String; the encoding is pinned (UTF-8, no normalisation — RFC 8265
+// OpaqueString is the caller's concern and is documented, not silently applied).
 extension (pw: String)
   @targetName("hashString")
-  def hash(params: Argon2Params)(using Supports[Argon2id]): UEffIO[PasswordHash] =
-    pw.getBytes(StandardCharsets.UTF_8).hash(params)
+  def hash(params: Argon2Params)(using Argon2, Random): UEffIO[PasswordHash] =
+    pw.getBytes(java.nio.charset.StandardCharsets.UTF_8).hash(params)
   @targetName("verifyString")
-  def verify(against: PasswordHash, policy: Argon2Params)(using Supports[Argon2id]): UEffIO[PasswordCheck] =
-    pw.getBytes(StandardCharsets.UTF_8).verify(against, policy)
+  def verify(against: PasswordHash, policy: Argon2Params)(using Argon2): UEffIO[PasswordCheck] =
+    pw.getBytes(java.nio.charset.StandardCharsets.UTF_8).verify(against, policy)

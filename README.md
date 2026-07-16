@@ -18,13 +18,13 @@ remove the classic footguns.
 kufuli publishes a platform-aware artifact for each target. In a cross-platform build:
 
 ```scala
-libraryDependencies += "io.github.arashi01" %%% "kufuli" % "<version>"
+libraryDependencies += "africa.shuwari" %%% "kufuli" % "<version>"
 ```
 
 For a JVM-only build, use `%%`. Browser targets use the WebCrypto artifact instead of the core one:
 
 ```scala
-libraryDependencies += "io.github.arashi01" %%% "kufuli-browser" % "<version>"
+libraryDependencies += "africa.shuwari" %%% "kufuli-browser" % "<version>"
 ```
 
 The JOSE, password, and X.509 layers are separate artifacts (`kufuli-jose`, `kufuli-password`,

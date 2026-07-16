@@ -18,15 +18,31 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+// JVM backend unit (JCA, floor JDK 25 LTS): bytes-backed keys; ML-KEM via JCA (JEP 496). XChaCha
+// and GCM-SIV are not in JCA, and core-JVM takes no BouncyCastle dependency (BC is
+// password-module-only). This file is the JVM capability table: each trait below is what the
+// shared companion of the same-named typeclass exposes on this unit.
 package kufuli
 
-// JVM backend (JCA, JDK 25 floor): key bytes; the full core set. ML-KEM is in-JDK JCA (from 24);
-// XChaCha and GCM-SIV are absent from JCA.
-private[kufuli] type KeyRepr = IArray[Byte]
-type DirectCapable = true
-type ChaChaCapable = true
-type KwpCapable = true
-type PasswordCapable = true
-type MlKemCapable = true
-type XChaChaCapable = false
-type GcmSivCapable = false
+private[kufuli] type KeyRepr = Array[Byte]
+private[kufuli] def keyRepr(bytes: Array[Byte]): KeyRepr = bytes
+private[kufuli] def keyBytes(r: KeyRepr): Array[Byte] = r
+
+private[kufuli] trait RandomPlatform extends jca.RandomDefault
+private[kufuli] trait AeadPlatform extends jca.AeadUniversal, jca.AeadChaCha
+private[kufuli] trait MacPlatform extends jca.MacAll
+private[kufuli] trait SignerPlatform extends jca.SignersAll
+private[kufuli] trait VerifierPlatform extends jca.VerifiersAll
+private[kufuli] trait AgreementPlatform extends jca.AgreementAll
+private[kufuli] trait KemPlatform extends jca.KemAll
+private[kufuli] trait WrapPlatform extends jca.WrapKw, jca.WrapKwp
+private[kufuli] trait KdfPlatform extends jca.KdfDefault
+private[kufuli] trait HashPlatform extends jca.HashAll
+private[kufuli] trait HashingPlatform extends jca.HashingSync
+private[kufuli] trait CipheringPlatform extends jca.CipheringUniversal, jca.CipheringChaCha
+private[kufuli] trait OaepPlatform extends jca.OaepDefault
+private[kufuli] trait EdKeysPlatform extends jca.EdKeysJca
+private[kufuli] trait XKeysPlatform extends jca.XKeysJca
+private[kufuli] trait EcKeysPlatform extends jca.EcKeysJca
+private[kufuli] trait RsaKeysPlatform extends jca.RsaKeysJca
+private[kufuli] trait KemKeysPlatform extends jca.KemKeysJca
