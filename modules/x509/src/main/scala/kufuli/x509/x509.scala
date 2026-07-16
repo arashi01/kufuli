@@ -162,29 +162,36 @@ private[x509] object X509:
       // walk TBS fields
       fields <- tbsFields(s, tbs)
     yield
-      val (issuer, subject, notBefore, notAfter, spki, exts) = fields
-      val (sanDns, isCa, ekus) = extensions(s, exts)
+      val ext = extensions(s, fields.exts)
       Parsed(
         tbs = s.slice(cert.contentOff, tbs.next).toArray,
-        spki = spki,
-        issuerDer = issuer,
-        subjectDer = subject,
-        notBefore = notBefore,
-        notAfter = notAfter,
-        sanDns = sanDns,
-        isCa = isCa,
-        ekus = ekus,
+        spki = fields.spki,
+        issuerDer = fields.issuerDer,
+        subjectDer = fields.subjectDer,
+        notBefore = fields.notBefore,
+        notAfter = fields.notAfter,
+        sanDns = ext.sanDns,
+        isCa = ext.isCa,
+        ekus = ext.ekus,
         sigScheme = sigScheme(s.slice(sigOid.contentOff, sigOid.next)),
         signature = s.slice(sigBits.contentOff + 1, sigBits.next).toArray
       )
     end for
   end parse
 
-  // (issuerDer, subjectDer, notBefore, notAfter, spkiDer, extensionsContent)
-  private def tbsFields(
-    s: Slice,
-    tbs: Der.Tlv
-  ): Either[PathInvalid, (Array[Byte], Array[Byte], Long, Long, Array[Byte], Option[Der.Tlv])] =
+  // Named so the same-typed neighbours cannot be transposed: issuerDer/subjectDer are both
+  // Array[Byte] and notBefore/notAfter both Long, so a positional slip would type-check and break
+  // chain linking or invert the validity window silently.
+  private type TbsFields = (
+    issuerDer: Array[Byte],
+    subjectDer: Array[Byte],
+    notBefore: Long,
+    notAfter: Long,
+    spki: Array[Byte],
+    exts: Option[Der.Tlv]
+  )
+
+  private def tbsFields(s: Slice, tbs: Der.Tlv): Either[PathInvalid, TbsFields] =
     val start = tbs.contentOff
     // optional version [0]
     val afterVersion =
@@ -200,32 +207,31 @@ private[x509] object X509:
       times <- parseValidity(s, validity)
     yield
       // scan the remainder of TBS for the extensions [3] wrapper
-      val exts = scanExtensions(s, spki.next, tbs.next)
       (
-        s.slice(sigAlgId.next, issuer.next).toArray,
-        s.slice(validity.next, subject.next).toArray,
-        times._1,
-        times._2,
-        s.slice(subject.next, spki.next).toArray,
-        exts
+        issuerDer = s.slice(sigAlgId.next, issuer.next).toArray,
+        subjectDer = s.slice(validity.next, subject.next).toArray,
+        notBefore = times.notBefore,
+        notAfter = times.notAfter,
+        spki = s.slice(subject.next, spki.next).toArray,
+        exts = scanExtensions(s, spki.next, tbs.next)
       )
     end for
   end tbsFields
 
-  private def parseValidity(s: Slice, validity: Der.Tlv): Either[PathInvalid, (Long, Long)] =
-    def time(off: Int): Either[PathInvalid, (Long, Int)] =
+  private def parseValidity(s: Slice, validity: Der.Tlv): Either[PathInvalid, (notBefore: Long, notAfter: Long)] =
+    def time(off: Int): Either[PathInvalid, (epoch: Long, next: Int)] =
       if off >= validity.next then Left(PathInvalid.MalformedChain)
       else
         val tag = s(off) & 0xff
         val generalized = tag == 0x18
         read(s, off, tag).flatMap { t =>
           val str = new String(s.slice(t.contentOff, t.next).toArray, "US-ASCII")
-          parseTime(str, generalized).map(e => (e, t.next)).toRight(PathInvalid.MalformedChain)
+          parseTime(str, generalized).map(e => (epoch = e, next = t.next)).toRight(PathInvalid.MalformedChain)
         }
     for
       nb <- time(validity.contentOff)
-      na <- time(nb._2)
-    yield (nb._1, na._1)
+      na <- time(nb.next)
+    yield (notBefore = nb.epoch, notAfter = na.epoch)
   end parseValidity
 
   @tailrec private def scanExtensions(s: Slice, start: Int, end: Int): Option[Der.Tlv] =
@@ -237,12 +243,15 @@ private[x509] object X509:
         case Right(t) if tag == 0xa3 => Der.read(s, t.contentOff, 0x30).toOption
         case Right(t)                => scanExtensions(s, t.next, end)
 
-  // Returns (SAN dNSNames, isCA, EKU dotted OIDs).
-  private def extensions(s: Slice, exts: Option[Der.Tlv]): (List[String], Boolean, List[String]) =
+  // Named for the same reason as TbsFields: sanDns and ekus are both List[String], so a positional
+  // slip would type-check and silently swap the hostname evidence with the EKU evidence.
+  private type Extensions = (sanDns: List[String], isCa: Boolean, ekus: List[String])
+
+  private def extensions(s: Slice, exts: Option[Der.Tlv]): Extensions =
     exts match
-      case None      => (Nil, false, Nil)
+      case None      => (sanDns = Nil, isCa = false, ekus = Nil)
       case Some(seq) =>
-        @tailrec def go(pos: Int, acc: (List[String], Boolean, List[String])): (List[String], Boolean, List[String]) =
+        @tailrec def go(pos: Int, acc: Extensions): Extensions =
           if pos >= seq.next then acc
           else
             Der.read(s, pos, 0x30) match
@@ -260,12 +269,13 @@ private[x509] object X509:
                       case Left(_)      => acc
                       case Right(octet) =>
                         val value = s.slice(octet.contentOff, octet.next)
-                        if eq(oidSlice, oidSan) then (parseSan(value), acc._2, acc._3)
-                        else if eq(oidSlice, oidBasicConstraints) then (acc._1, parseBasicConstraints(value), acc._3)
-                        else if eq(oidSlice, oidEku) then (acc._1, acc._2, parseEku(value))
+                        if eq(oidSlice, oidSan) then (sanDns = parseSan(value), isCa = acc.isCa, ekus = acc.ekus)
+                        else if eq(oidSlice, oidBasicConstraints) then
+                          (sanDns = acc.sanDns, isCa = parseBasicConstraints(value), ekus = acc.ekus)
+                        else if eq(oidSlice, oidEku) then (sanDns = acc.sanDns, isCa = acc.isCa, ekus = parseEku(value))
                         else acc
                 go(ext.next, updated)
-        go(seq.contentOff, (Nil, false, Nil))
+        go(seq.contentOff, (sanDns = Nil, isCa = false, ekus = Nil))
 
   private def parseSan(value: Slice): List[String] =
     // GeneralNames ::= SEQUENCE OF GeneralName; dNSName is context [2] IA5String.

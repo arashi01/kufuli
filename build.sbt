@@ -245,6 +245,7 @@ def baseCompilerOptions = List(
 
 def compilerOptions = baseCompilerOptions ++ List(
   "-Yexplicit-nulls",
+  "-Wsafe-init",
   "-Xcheck-macros",
   "-Werror"
 )

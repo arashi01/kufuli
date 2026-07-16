@@ -244,7 +244,7 @@ private[kufuli] object jca:
 
   private def ecSigner[C <: EcCurve](fieldLength: Int): Signer[C] = new Signer[C]:
     def sign(key: PrivateKey[C], data: Slice, scheme: Scheme[C]): UEffIO[Signature[C]] = op {
-      val h = (scheme: @unchecked) match
+      val h = scheme.runtimeChecked match
         case Ecdsa(hash) => hash
       key.read { s =>
         val sg = JSignature.getInstance(ecdsaName(h))
@@ -255,7 +255,7 @@ private[kufuli] object jca:
     }
   private def ecVerifier[C <: EcCurve]: Verifier[C] = new Verifier[C]:
     def verify(key: PublicKey[C], data: Slice, sig: Signature[C], scheme: Scheme[C]): EffIO[SignatureRejected, Unit] = opE {
-      val h = (scheme: @unchecked) match
+      val h = scheme.runtimeChecked match
         case Ecdsa(hash) => hash
       val sg = JSignature.getInstance(ecdsaName(h))
       sg.initVerify(parsePub("EC", keyBytes(key.repr)))
@@ -267,7 +267,7 @@ private[kufuli] object jca:
     def sign(key: PrivateKey[Rsa], data: Slice, scheme: Scheme[Rsa]): UEffIO[Signature[Rsa]] = op {
       key.read { s =>
         val priv = parsePriv("RSA", s.toArray)
-        val sg = (scheme: @unchecked) match
+        val sg = scheme.runtimeChecked match
           case RsaPss(h)   => val x = JSignature.getInstance("RSASSA-PSS"); x.setParameter(pssParams(h)); x
           case RsaPkcs1(h) => JSignature.getInstance(pkcs1Name(h))
         sg.initSign(priv)
@@ -278,7 +278,7 @@ private[kufuli] object jca:
   private def rsaVerifier: Verifier[Rsa] = new Verifier[Rsa]:
     def verify(key: PublicKey[Rsa], data: Slice, sig: Signature[Rsa], scheme: Scheme[Rsa]): EffIO[SignatureRejected, Unit] = opE {
       val pub = parsePub("RSA", keyBytes(key.repr))
-      val sg = (scheme: @unchecked) match
+      val sg = scheme.runtimeChecked match
         case RsaPss(h)   => val x = JSignature.getInstance("RSASSA-PSS"); x.setParameter(pssParams(h)); x
         case RsaPkcs1(h) => JSignature.getInstance(pkcs1Name(h))
       sg.initVerify(pub)
