@@ -18,7 +18,7 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-// kufuli.unsafe — the expert floor: raw block/keystream/header-protection primitives that trade
+// kufuli.unsafe - the expert floor: raw block/keystream/header-protection primitives that trade
 // away misuse-resistance (every invariant is the caller's). The package ships only in the
 // synchronous artifacts (module-level absence in the browser). The primitive bodies below are
 // placeholders with the final Slice-speaking shape; the platform passes (K-2' aws-lc, K-3' node,

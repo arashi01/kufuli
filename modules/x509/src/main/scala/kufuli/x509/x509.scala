@@ -18,7 +18,7 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-// kufuli.x509 — TLS-profile path validation over the core operation families. Scope is the
+// kufuli.x509 - TLS-profile path validation over the core operation families. Scope is the
 // TLS-client/server need: parse, verify the chain's signatures to trust anchors (through the core
 // Verifier seam), check the validity window, match SAN/hostname per RFC 6125, enforce basic
 // constraints and EKU by purpose, and verify a stapled OCSP response. NOT policy trees, CRL, or

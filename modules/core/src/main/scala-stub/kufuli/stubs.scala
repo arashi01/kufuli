@@ -65,9 +65,9 @@ private[kufuli] object stubs:
   private def fresh(tag: String)(len: Int): Array[Byte] =
     mix(len)(Slice.of(tag.getBytes), Slice.of(longBytes(seq.incrementAndGet())))
 
-  // Ciphertext = plaintext ++ tag where the tag mixes key, nonce, aad, and payload — so
+  // Ciphertext = plaintext ++ tag where the tag mixes key, nonce, aad, and payload - so
   // round-trips are real byte equalities and ANY input difference (tampered ciphertext, wrong
-  // key/nonce/aad — including the authenticated box header) fails authentication.
+  // key/nonce/aad - including the authenticated box header) fails authentication.
   private def sealBytes[A <: AeadAlgorithm](spec: AeadSpec[A])(key: SecretKey[A], nonce: Array[Byte], aad: Slice, pt: Slice): Array[Byte] =
     val tag = key.read(k => mix(spec.tagLength)(k, Slice.of(nonce), aad, pt))
     val out = new Array[Byte](pt.length + spec.tagLength)
@@ -211,7 +211,7 @@ private[kufuli] object stubs:
       val _ = Slice.of(fresh("fill")(dst.length)).copyInto(dst)
     }
 
-  // -- key lifecycle stubs: pub == priv bytes; imports validate byte-faithfully; exports emit
+  // Key lifecycle stubs: pub == priv bytes; imports validate byte-faithfully; exports emit
   // REAL encodings (RFC 8410 templates for Ed/X, Der-built SPKI/PKCS#8 for EC/RSA) so the shared
   // peek round-trips executed blobs. Validation conventions: a 0xFF-led point is "off-curve"; an
   // all-zero X25519 point is a weak point. `handleBacked = true` models WebCrypto: GENERATED keys
@@ -398,7 +398,7 @@ private[kufuli] object stubs:
     }
     def raw(key: PublicKey[K]) = EffIO.succeed(IArray.from(keyBytes(key.repr)))
 
-  // -- composable instance bundles (per-unit platform traits extend exactly their backend's set) --
+  // Composable instance bundles: each per-unit platform trait extends exactly its backend's set.
 
   private[kufuli] trait AeadUniversal:
     given Aead[AesGcm128] = aead(AesGcm128)

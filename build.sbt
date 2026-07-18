@@ -50,7 +50,10 @@ val kufuli =
       Seq(WebCryptoAxis),
       (p: Project) => p.settings(jsSettings ++ jsBrowserSettings("kufuli") ++ coreStubDir)
     )
-    .snxPlatform(Seq(scala3), NativePlatformPlugin.schemeSettings ++ coreStubDir ++ coreDirectDir)
+    .snxPlatform(
+      Seq(scala3),
+      NativePlatformPlugin.schemeSettings ++ coreDirectDir ++ NativePlatformPlugin.exportCrypto ++ NativePlatformPlugin.provisionAwsLc
+    )
 
 val `kufuli-jose` =
   projectMatrix
@@ -65,7 +68,7 @@ val `kufuli-jose` =
     .snxPlatform(
       Seq(scala3),
       Seq.empty[VirtualAxis],
-      (p: Project) => p.settings(NativePlatformPlugin.schemeSettings).dependsOn(kufuli.native(scala3))
+      (p: Project) => p.settings(NativePlatformPlugin.schemeSettings ++ NativePlatformPlugin.provisionAwsLc).dependsOn(kufuli.native(scala3))
     )
 
 val `kufuli-password` =
@@ -86,7 +89,7 @@ val `kufuli-password` =
     .snxPlatform(
       Seq(scala3),
       Seq.empty[VirtualAxis],
-      (p: Project) => p.settings(NativePlatformPlugin.schemeSettings).dependsOn(kufuli.native(scala3))
+      (p: Project) => p.settings(NativePlatformPlugin.schemeSettings ++ NativePlatformPlugin.provisionAwsLc).dependsOn(kufuli.native(scala3))
     )
 
 val `kufuli-x509` =
@@ -102,7 +105,7 @@ val `kufuli-x509` =
     .snxPlatform(
       Seq(scala3),
       Seq.empty[VirtualAxis],
-      (p: Project) => p.settings(NativePlatformPlugin.schemeSettings).dependsOn(kufuli.native(scala3))
+      (p: Project) => p.settings(NativePlatformPlugin.schemeSettings ++ NativePlatformPlugin.provisionAwsLc).dependsOn(kufuli.native(scala3))
     )
 
 // Capability-gated test source sets: `scala` runs on all four platforms; `extended` (jvm/native/
@@ -125,7 +128,7 @@ val `kufuli-tests` =
       Seq(scala3),
       Seq.empty[VirtualAxis],
       (p: Project) =>
-        p.settings(testDir("extended") ++ testDir("pq") ++ testDir("jvm-kat"))
+        p.settings(testDir("extended") ++ testDir("pq") ++ testDir("jvm-kat") ++ testDir("kat"))
           .dependsOn(kufuli.jvm(scala3), `kufuli-jose`.jvm(scala3), `kufuli-x509`.jvm(scala3), `kufuli-password`.jvm(scala3))
     )
     .jsPlatform(
@@ -146,13 +149,16 @@ val `kufuli-tests` =
       Seq(scala3),
       Seq.empty[VirtualAxis],
       (p: Project) =>
-        p.settings(NativePlatformPlugin.testLinkSettings ++ testDir("extended") ++ testDir("pq"))
-          .dependsOn(
-            kufuli.native(scala3),
-            `kufuli-jose`.native(scala3),
-            `kufuli-x509`.native(scala3),
-            `kufuli-password`.native(scala3)
+        p.settings(
+          NativePlatformPlugin.testLinkSettings ++ NativePlatformPlugin.provisionAwsLc ++ testDir("extended") ++ testDir("pq") ++ testDir(
+            "kat"
           )
+        ).dependsOn(
+          kufuli.native(scala3),
+          `kufuli-jose`.native(scala3),
+          `kufuli-x509`.native(scala3),
+          `kufuli-password`.native(scala3)
+        )
     )
 
 val `kufuli-jvm` =
