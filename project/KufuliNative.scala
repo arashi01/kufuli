@@ -41,15 +41,13 @@ object KufuliNative {
     * backend never passes `-DCMAKE_C_COMPILER`, so an `SNX.clang` override would not reach this
     * build (sbt-snx #19) - the discovered PATH compiler must itself be the MSVC one.
     * `CMAKE_MSVC_RUNTIME_LIBRARY` (honoured through aws-lc's `CMP0091 NEW`) links the CRT
-    * statically for C/C++ to match the Scala Native link and libargon2 - a mismatched CRT leaves
-    * aws-lc's dynamic `__imp_` ucrt symbols unresolved. It is scoped off the `ASM` language because
-    * aarch64 assembles with the MSVC assembler (CMake language `ASM`), which has no runtime-library
-    * concept and errors on any value, whereas x86_64 uses NASM (the distinct `ASM_NASM` language)
-    * that the setting never reaches. Plain `MultiThreaded` (release `/MT`) matches the Scala Native
-    * link's `-fms-runtime-lib=static`, so a Debug-configured aws-lc still links against one CRT.
+    * statically to match the Scala Native link and libargon2; a mismatched CRT leaves aws-lc's
+    * dynamic `__imp_` ucrt symbols unresolved. Plain `MultiThreaded` (release `/MT`) matches the
+    * link's `-fms-runtime-lib=static` even for a Debug build. The per-arch assembler handling that
+    * lets this apply cleanly is in the cmake selector.
     */
   private val windowsFlags: Seq[String] =
-    Seq("-GNinja", "-DCMAKE_MSVC_RUNTIME_LIBRARY=$<$<NOT:$<COMPILE_LANGUAGE:ASM>>:MultiThreaded>")
+    Seq("-GNinja", "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded")
 
   /** The link closure a static archive cannot carry itself. */
   private val closure: PartialFunction[NativeRuntime, Flags] = { case Linux(_, _) =>
@@ -72,9 +70,13 @@ object KufuliNative {
         .cmake(
           Seq("crypto"),
           {
-            // NASM assembles aws-lc's x86_64 asm; aarch64 uses the MSVC assembler and needs no flag.
+            // x86_64 assembles with NASM, which ignores CMAKE_MSVC_RUNTIME_LIBRARY. aarch64 assembles
+            // with the MSVC assembler, which rejects that setting and cannot be excluded from it
+            // (CMAKE_MSVC_RUNTIME_LIBRARY forbids a COMPILE_LANGUAGE generator expression - it is read
+            // during compiler-ABI detection), so build the aarch64 crypto pure-C to keep the static CRT
+            // off the assembler; the C implementation is functionally identical, only unoptimised.
             case Windows(Arch.X86_64, _) => configureFlags ++ windowsFlags :+ "-DCMAKE_ASM_NASM_COMPILER=nasm"
-            case Windows(_, _)           => configureFlags ++ windowsFlags
+            case Windows(_, _)           => configureFlags ++ windowsFlags :+ "-DOPENSSL_NO_ASM=ON"
             case _                       => configureFlags
           }
         )
