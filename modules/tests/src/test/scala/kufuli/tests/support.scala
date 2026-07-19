@@ -25,7 +25,6 @@ import scala.reflect.TypeTest
 import boilerplate.effect.EffIO
 import cats.effect.IO
 
-// IO helpers for the flow suites.
 object support:
   def expectRight[E <: Throwable, A](label: String)(e: EffIO[E, A])(using TypeTest[Throwable, E]): IO[A] =
     e.either.flatMap {

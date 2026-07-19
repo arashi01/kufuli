@@ -27,12 +27,6 @@ import cats.effect.IO
 import kufuli.*
 import kufuli.tests.support.*
 
-// Exact-value known-answer vectors from the published standards, exercised through the PUBLIC API so
-// they run as ONE body of code on every real backend. Wired to the JVM and Native rows, they prove
-// the two independent backends (JCA and aws-lc) agree on the standard values byte-for-byte - not
-// merely that each round-trips with itself. Later platforms (node/browser) light this suite up by
-// joining the source set once their real backend lands; the stub rows do not run it (the expected
-// values only hold on real cryptography).
 class RealVectorSuite extends munit.CatsEffectSuite:
 
   private def hex(b: Array[Byte]): String = b.map(x => f"$x%02x").mkString

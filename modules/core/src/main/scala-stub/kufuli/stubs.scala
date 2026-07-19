@@ -18,11 +18,8 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-// Byte-faithful stub backend for the platforms whose real provider is not yet wired (Native via
-// aws-lc, Node via node:crypto, Browser via WebCrypto). The instances are deterministic and
-// sensitive to every input byte, so every round-trip is a real byte equality and every tamper
-// check a real rejection; the platform passes replace these bodies one family at a time. The op
-// seam (the family typeclasses) is identical to a real backend.
+// Deterministic, input-sensitive stub backend for node and browser: round-trips are real byte
+// equalities and tamper checks real rejections, over the same op seam as a real backend.
 package kufuli
 
 import java.util.concurrent.atomic.AtomicLong
@@ -42,7 +39,7 @@ private[kufuli] object stubs:
     val b = (a ^ (a >>> 27)) * 0x94d049bb133111ebL
     b ^ (b >>> 31)
 
-  /** Deterministic `len` bytes sensitive to every input byte. */
+  // Deterministic `len` bytes sensitive to every input byte.
   private[kufuli] def mix(len: Int)(parts: Slice*): Array[Byte] =
     val seed = parts.foldLeft(0xcbf29ce484222325L) { (h, s) =>
       (0 until s.length).foldLeft(h)((h2, i) => (h2 ^ (s(i) & 0xff)) * 0x100000001b3L)
@@ -61,7 +58,7 @@ private[kufuli] object stubs:
   private val seq = new AtomicLong(0)
   private def longBytes(l: Long): Array[Byte] = Array.tabulate(8)(i => (l >>> (56 - 8 * i)).toByte)
 
-  /** Deterministic-but-distinct bytes per call: probe generation (no ambient randomness). */
+  // Deterministic-but-distinct bytes per call (no ambient randomness).
   private def fresh(tag: String)(len: Int): Array[Byte] =
     mix(len)(Slice.of(tag.getBytes), Slice.of(longBytes(seq.incrementAndGet())))
 

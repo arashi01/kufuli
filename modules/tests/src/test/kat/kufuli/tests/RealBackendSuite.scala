@@ -30,11 +30,6 @@ import kufuli.jose.*
 import kufuli.tests.support.*
 import kufuli.x509 as x5
 
-// Real-backend behaviour over the families with a COMMON cross-backend API: AEAD, signatures, KEM,
-// key wrap, the jose engine, and x509 path validation. One body of code wired to the JVM and Native
-// rows, so JCA and aws-lc are exercised through the same tests (later platforms join when their real
-// backend lands). The exact-value standard vectors live in RealVectorSuite; the Argon2id vector and
-// the PHC login flow stay JVM-only until the Native libargon2 provider lands.
 class RealBackendSuite extends munit.CatsEffectSuite:
 
   private def hex(b: Array[Byte]): String = b.map(x => f"$x%02x").mkString
