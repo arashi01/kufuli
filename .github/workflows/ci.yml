@@ -116,9 +116,9 @@ jobs:
             runner: ubuntu-24.04-arm
             dockerImage: shuwariafrica/el10-jdk:25
             link: dynamic
-          # scala-native's musl stack-guard handling (upstream #4934, unreleased as of 0.5.12)
-          # SIGSEGVs static binaries at the first new-thread creation; dynamic musl passes.
-          # Best-effort until the fix ships.
+          # Dynamic musl passes. The fully-static musl lanes hit scala-native#4934 (a static-musl
+          # new-thread SIGSEGV, unreleased as of 0.5.12) and are commented out below until it ships;
+          # the `Verify static linkage` step stays and lies dormant until they return.
           - target: linux-musl-x86_64
             runner: ubuntu-24.04
             dockerImage: shuwariafrica/alpine-jdk:25
@@ -129,16 +129,16 @@ jobs:
             dockerImage: shuwariafrica/alpine-jdk:25
             link: dynamic
             continueOnError: true
-          - target: linux-musl-x86_64-static
-            runner: ubuntu-24.04
-            dockerImage: shuwariafrica/alpine-jdk:25
-            link: static
-            continueOnError: true
-          - target: linux-musl-aarch64-static
-            runner: ubuntu-24.04-arm
-            dockerImage: shuwariafrica/alpine-jdk:25
-            link: static
-            continueOnError: true
+          # - target: linux-musl-x86_64-static
+          #   runner: ubuntu-24.04
+          #   dockerImage: shuwariafrica/alpine-jdk:25
+          #   link: static
+          #   continueOnError: true
+          # - target: linux-musl-aarch64-static
+          #   runner: ubuntu-24.04-arm
+          #   dockerImage: shuwariafrica/alpine-jdk:25
+          #   link: static
+          #   continueOnError: true
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.continueOnError == true }}
     timeout-minutes: 45
