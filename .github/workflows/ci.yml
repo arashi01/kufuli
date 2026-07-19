@@ -159,7 +159,10 @@ jobs:
       - name: Execute Tests
         id: tests
         shell: bash
-        run: ./project/scripts/run-sbt.sh "kufuli-native/test"
+        # Only kufuli-tests carries native test sources; linking that one binary exercises every
+        # module's native code and builds aws-lc once. The kufuli-native aggregate links a test
+        # binary per module, and five concurrent cold aws-lc builds exhaust the macOS process limit.
+        run: ./project/scripts/run-sbt.sh "kufuli-testsNative/test"
 
       - name: Verify vendored native linkage
         # A mis-rebind onto stock OpenSSL fails at link, so a linked binary already proves the shim
@@ -179,8 +182,10 @@ jobs:
           syms=$(nm "$bin" 2>/dev/null || true)
           missing=""
           # aws-lc BoringSSL-dialect symbols stock OpenSSL does not export, plus libargon2's entry.
+          # Here-string, not `echo "$syms" | grep`: grep -q closes the pipe on its first match, and
+          # under `set -o pipefail` echo's resulting SIGPIPE fails the test for a symbol that IS present.
           for s in EVP_AEAD_CTX_seal HKDF_extract EVP_marshal_public_key EVP_PKEY_CTX_kem_set_params argon2id_hash_raw; do
-            echo "$syms" | grep -qw "$s" || missing="$missing $s"
+            grep -qw "$s" <<<"$syms" || missing="$missing $s"
           done
           if [ -n "$missing" ]; then
             echo "::error::$bin is missing vendored symbols:$missing (aws-lc mis-rebind onto stock OpenSSL, or libargon2 unprovisioned?)"
@@ -251,7 +256,7 @@ jobs:
 
       - name: Execute Tests
         shell: bash
-        run: ./project/scripts/run-sbt.sh "kufuli-native/test"
+        run: ./project/scripts/run-sbt.sh "kufuli-testsNative/test"
 
       - name: Package Artefacts
         shell: bash
@@ -305,7 +310,7 @@ jobs:
 
       - name: Execute Tests
         shell: bash
-        run: ./project/scripts/run-sbt.sh "kufuli-native/test"
+        run: ./project/scripts/run-sbt.sh "kufuli-testsNative/test"
 
       - name: Package Artefacts
         shell: bash

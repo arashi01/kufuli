@@ -40,9 +40,12 @@ object KufuliNative {
     * all, so the build must be driven by Ninja from an environment where the MSVC toolchain is
     * already on PATH (`vcvarsall.bat`). sbt-snx's CMake backend never passes `-DCMAKE_C_COMPILER`,
     * so an `SNX.clang` override would not reach this build (sbt-snx #19) - the discovered PATH
-    * compiler must itself be the MSVC one.
+    * compiler must itself be the MSVC one. `CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded` (honoured
+    * through aws-lc's `CMP0091 NEW`) links the CRT statically to match the Scala Native link and
+    * libargon2; a mismatched CRT leaves aws-lc's dynamic `__imp_` ucrt stdio symbols unresolved.
     */
-  private val windowsFlags: Seq[String] = Seq("-GNinja", "-DCMAKE_ASM_NASM_COMPILER=nasm")
+  private val windowsFlags: Seq[String] =
+    Seq("-GNinja", "-DCMAKE_ASM_NASM_COMPILER=nasm", "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded")
 
   /** The link closure a static archive cannot carry itself. */
   private val closure: PartialFunction[NativeRuntime, Flags] = { case Linux(_, _) =>
@@ -92,12 +95,20 @@ object KufuliNative {
   private def buildArgon2(context: BuildContext): Artefacts = {
     val buildDir = context.staging / "build"
     IO.copyDirectory(context.source, buildDir)
+    // On MSVC the CRT must match aws-lc and the Scala Native link (all static). The reference
+    // Makefile builds objects with `CFLAGS +=`, which a command-line `CFLAGS=` would clobber, so
+    // fold the runtime selector into `CC` (make expands `$(CC)` at every compile; the archive step
+    // runs `ar`, so it is untouched).
+    val cc = context.runtime match {
+      case Windows(_, Msvc) => s"${context.clang.getAbsolutePath} -fms-runtime-lib=static"
+      case _                => context.clang.getAbsolutePath
+    }
     val command = Seq(
       "make",
       "-C",
       buildDir.getAbsolutePath,
       "libargon2.a",
-      s"CC=${context.clang.getAbsolutePath}",
+      s"CC=$cc",
       "NO_THREADS=1",
       "OPTTARGET="
     )
