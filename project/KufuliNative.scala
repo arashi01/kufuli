@@ -131,9 +131,20 @@ object KufuliNative {
     val logger = ProcessLogger(line => context.log.info(line), line => context.log.error(line))
     if (Process(command).!(logger) != 0)
       sys.error(s"snx: libargon2 build failed: ${command.mkString(" ")}")
-    val archive = buildDir / "libargon2.a"
-    if (!archive.isFile) sys.error(s"snx: libargon2 build produced no archive at ${archive.getAbsolutePath}")
-    Artefacts(Seq(archive), Seq(buildDir / "include"))
+    val includes = Seq(buildDir / "include")
+    context.runtime match {
+      case Windows(_, Msvc) =>
+        // lld-link does not resolve `argon2id_hash_raw` from make's GNU `ar` archive (aws-lc links
+        // because CMake emits an MSVC `.lib`; argon2 ships no CMakeLists). Fold the compiled objects in
+        // directly - a directly-linked object is always included, so no archive symbol index is read.
+        val objects = ((buildDir / "src") ** "*.o").get().filter(_.isFile).sortBy(_.getAbsolutePath)
+        if (objects.isEmpty) sys.error(s"snx: libargon2 build produced no objects under ${(buildDir / "src").getAbsolutePath}")
+        Artefacts(objects, includes)
+      case _ =>
+        val archive = buildDir / "libargon2.a"
+        if (!archive.isFile) sys.error(s"snx: libargon2 build produced no archive at ${archive.getAbsolutePath}")
+        Artefacts(Seq(archive), includes)
+    }
   }
 
   /** libargon2, built from source at a pinned tag and folded into the link.
@@ -149,6 +160,8 @@ object KufuliNative {
       "argon2",
       Vendored
         .git(argon2Repository, argon2Tag)
-        .command("libargon2-static-ref-nothreads-1")(buildArgon2)
+        // The token is the whole cache key for a `command` build (the build function's contents are not
+        // hashed), so it MUST change whenever `buildArgon2` changes, or a stale archive is reused.
+        .command("libargon2-static-ref-nothreads-2-winobjs")(buildArgon2)
     )
 }
