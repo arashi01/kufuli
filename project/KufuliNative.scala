@@ -103,13 +103,20 @@ object KufuliNative {
   private def buildArgon2(context: BuildContext): Artefacts = {
     val buildDir = context.staging / "build"
     IO.copyDirectory(context.source, buildDir)
-    // On MSVC the CRT must match aws-lc and the Scala Native link (all static). The reference
-    // Makefile builds objects with `CFLAGS +=`, which a command-line `CFLAGS=` would clobber, so
-    // fold the runtime selector into `CC` (make expands `$(CC)` at every compile; the archive step
-    // runs `ar`, so it is untouched).
+    // On MSVC, fold the target and CRT selectors into `CC` (make expands `$(CC)` at every compile;
+    // the archive step runs `ar`, so it is untouched; a command-line `CFLAGS=` would instead clobber
+    // the reference Makefile's own `CFLAGS +=`). clang - unlike the `cl.exe` aws-lc builds with - does
+    // not take its target from the vcvars environment, so a bare invocation defaults to x86_64 and
+    // emits objects the aarch64 link cannot resolve (undefined `argon2id_hash_raw`); pin the target to
+    // the build arch. The static CRT matches aws-lc and the Scala Native link.
     val cc = context.runtime match {
-      case Windows(_, Msvc) => s"${context.clang.getAbsolutePath} -fms-runtime-lib=static"
-      case _                => context.clang.getAbsolutePath
+      case Windows(arch, Msvc) =>
+        val triple = arch match {
+          case Arch.X86_64  => "x86_64-pc-windows-msvc"
+          case Arch.Aarch64 => "aarch64-pc-windows-msvc"
+        }
+        s"${context.clang.getAbsolutePath} --target=$triple -fms-runtime-lib=static"
+      case _ => context.clang.getAbsolutePath
     }
     val command = Seq(
       "make",
