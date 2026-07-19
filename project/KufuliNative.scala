@@ -36,16 +36,20 @@ object KufuliNative {
     "-DCMAKE_POSITION_INDEPENDENT_CODE=ON"
   )
 
-  /** aws-lc assembles with NASM on Windows and its CMake Visual Studio generator cannot assemble at
-    * all, so the build must be driven by Ninja from an environment where the MSVC toolchain is
-    * already on PATH (`vcvarsall.bat`). sbt-snx's CMake backend never passes `-DCMAKE_C_COMPILER`,
-    * so an `SNX.clang` override would not reach this build (sbt-snx #19) - the discovered PATH
-    * compiler must itself be the MSVC one. `CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded` (honoured
-    * through aws-lc's `CMP0091 NEW`) links the CRT statically to match the Scala Native link and
-    * libargon2; a mismatched CRT leaves aws-lc's dynamic `__imp_` ucrt stdio symbols unresolved.
+  /** aws-lc's CMake Visual Studio generator cannot assemble, so the build is driven by Ninja from
+    * an environment where the MSVC toolchain is already on PATH (`vcvarsall.bat`). sbt-snx's CMake
+    * backend never passes `-DCMAKE_C_COMPILER`, so an `SNX.clang` override would not reach this
+    * build (sbt-snx #19) - the discovered PATH compiler must itself be the MSVC one.
+    * `CMAKE_MSVC_RUNTIME_LIBRARY` (honoured through aws-lc's `CMP0091 NEW`) links the CRT
+    * statically for C/C++ to match the Scala Native link and libargon2 - a mismatched CRT leaves
+    * aws-lc's dynamic `__imp_` ucrt symbols unresolved. It is scoped off the `ASM` language because
+    * aarch64 assembles with the MSVC assembler (CMake language `ASM`), which has no runtime-library
+    * concept and errors on any value, whereas x86_64 uses NASM (the distinct `ASM_NASM` language)
+    * that the setting never reaches. Plain `MultiThreaded` (release `/MT`) matches the Scala Native
+    * link's `-fms-runtime-lib=static`, so a Debug-configured aws-lc still links against one CRT.
     */
   private val windowsFlags: Seq[String] =
-    Seq("-GNinja", "-DCMAKE_ASM_NASM_COMPILER=nasm", "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded")
+    Seq("-GNinja", "-DCMAKE_MSVC_RUNTIME_LIBRARY=$<$<NOT:$<COMPILE_LANGUAGE:ASM>>:MultiThreaded>")
 
   /** The link closure a static archive cannot carry itself. */
   private val closure: PartialFunction[NativeRuntime, Flags] = { case Linux(_, _) =>
@@ -68,8 +72,10 @@ object KufuliNative {
         .cmake(
           Seq("crypto"),
           {
-            case Windows(_, _) => configureFlags ++ windowsFlags
-            case _             => configureFlags
+            // NASM assembles aws-lc's x86_64 asm; aarch64 uses the MSVC assembler and needs no flag.
+            case Windows(Arch.X86_64, _) => configureFlags ++ windowsFlags :+ "-DCMAKE_ASM_NASM_COMPILER=nasm"
+            case Windows(_, _)           => configureFlags ++ windowsFlags
+            case _                       => configureFlags
           }
         )
         .options(closure)
