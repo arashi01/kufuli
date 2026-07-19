@@ -81,14 +81,12 @@ object Unexpected:
 private[kufuli] def guard[A](io: IO[A]): IO[A] =
   io.handleErrorWith(t => IO.raiseError(Unexpected(t)))
 
-/** Internal mutable carrier for secret bytes - the one place zeroisation and liveness live. Mutable
-  * backing is what makes `wipe` possible; best-effort on managed runtimes per `Slice.wipe`'s
-  * contract. An internal resource handle, never a public data aggregate.
-  */
+// The one place secret-byte zeroisation and liveness live; mutable backing is what makes `wipe`
+// possible (best-effort on managed runtimes per `Slice.wipe`).
 final private[kufuli] class Secret(bytes: Array[Byte]):
   private val live = new AtomicBoolean(true)
 
-  /** Borrow the live bytes for `f`; use-after-destroy is a programmer error and raises. */
+  // Use-after-destroy is a programmer error and raises.
   private[kufuli] def read[A](f: Slice => A): A =
     if !live.get then throw new IllegalStateException("secret already destroyed") // scalafix:ok DisableSyntax.throw
     f(Slice.of(bytes))
@@ -126,7 +124,7 @@ sealed abstract class SymmetricSpec[A <: SymmetricAlgorithm](val keyLength: Int)
     }
 end SymmetricSpec
 
-sealed abstract class AeadSpec[A <: AeadAlgorithm](keyLength: Int, val nonceLength: Int, val tagLength: Int)
+sealed abstract class AeadSpec[A <: AeadAlgorithm](keyLength: Int, val nonceLength: Int, val tagLength: Int, val defaultLimits: AeadLimits)
     extends SymmetricSpec[A](keyLength):
   /** A fresh key from the backend CSPRNG; requires the algorithm to be OPERABLE here. */
   final def generate(using a: Aead[A], r: Random): UEffIO[SecretKey[A]] =
@@ -186,25 +184,25 @@ sealed abstract class KemSpec[K <: KemAlgorithm](val publicKeyLength: Int, val c
   final def generate(using k: KemKeys[K]): UEffIO[KeyPair[PublicKey[K], PrivateKey[K]]] = k.generate
 
 sealed trait AesGcm128 extends AeadAlgorithm
-case object AesGcm128 extends AeadSpec[AesGcm128](16, 12, 16) with AesGcm128
+case object AesGcm128 extends AeadSpec[AesGcm128](16, 12, 16, AeadLimits.default) with AesGcm128
 sealed trait AesGcm192 extends AeadAlgorithm
-case object AesGcm192 extends AeadSpec[AesGcm192](24, 12, 16) with AesGcm192
+case object AesGcm192 extends AeadSpec[AesGcm192](24, 12, 16, AeadLimits.default) with AesGcm192
 sealed trait AesGcm256 extends AeadAlgorithm
-case object AesGcm256 extends AeadSpec[AesGcm256](32, 12, 16) with AesGcm256
+case object AesGcm256 extends AeadSpec[AesGcm256](32, 12, 16, AeadLimits.default) with AesGcm256
 sealed trait ChaCha20Poly1305 extends AeadAlgorithm
-case object ChaCha20Poly1305 extends AeadSpec[ChaCha20Poly1305](32, 12, 16) with ChaCha20Poly1305
+case object ChaCha20Poly1305 extends AeadSpec[ChaCha20Poly1305](32, 12, 16, AeadLimits.chaCha) with ChaCha20Poly1305
 // Misuse-resistant tier (capability-gated): XChaCha's 192-bit nonce makes random-nonce sealing
 // safe at any realistic volume; GCM-SIV survives nonce repetition outright. Prefer these for
 // `seal` at volume where present; rotation + GCM's documented 2^32 bound elsewhere.
 sealed trait XChaCha20Poly1305 extends AeadAlgorithm
-case object XChaCha20Poly1305 extends AeadSpec[XChaCha20Poly1305](32, 24, 16) with XChaCha20Poly1305
+case object XChaCha20Poly1305 extends AeadSpec[XChaCha20Poly1305](32, 24, 16, AeadLimits.chaCha) with XChaCha20Poly1305
 sealed trait AesGcmSiv256 extends AeadAlgorithm
-case object AesGcmSiv256 extends AeadSpec[AesGcmSiv256](32, 12, 16) with AesGcmSiv256
+case object AesGcmSiv256 extends AeadSpec[AesGcmSiv256](32, 12, 16, AeadLimits.default) with AesGcmSiv256
 // JOSE composite AEADs (RFC 7518 section 5.2 names): key is MAC||ENC, tag is truncated HMAC.
 sealed trait A128CbcHs256 extends AeadAlgorithm
-case object A128CbcHs256 extends AeadSpec[A128CbcHs256](32, 16, 16) with A128CbcHs256
+case object A128CbcHs256 extends AeadSpec[A128CbcHs256](32, 16, 16, AeadLimits.default) with A128CbcHs256
 sealed trait A256CbcHs512 extends AeadAlgorithm
-case object A256CbcHs512 extends AeadSpec[A256CbcHs512](64, 16, 32) with A256CbcHs512
+case object A256CbcHs512 extends AeadSpec[A256CbcHs512](64, 16, 32, AeadLimits.default) with A256CbcHs512
 
 sealed trait HmacSha256 extends MacAlgorithm
 case object HmacSha256 extends MacSpec[HmacSha256](32) with HmacSha256
@@ -805,7 +803,7 @@ object Agreement extends AgreementPlatform
 extension [A <: AgreementAlgorithm](k: PrivateKey[A])
   def agree(peer: PublicKey[A])(using a: Agreement[A]): UEffIO[SharedSecret] = a.agree(k, peer)
 
-@implicitNotFound("${K} is not provided by this kufuli backend (ML-KEM is JVM >= 25 and Native; Node pending; the browser lacks it)")
+@implicitNotFound("${K} is not provided by this kufuli backend (ML-KEM is JVM >= 25 and Native, not Node or browser)")
 trait Kem[K <: KemAlgorithm]:
   def encapsulate(pub: PublicKey[K]): UEffIO[Encapsulated[K]]
 
@@ -1028,8 +1026,16 @@ extension [A <: AeadAlgorithm](key: SecretKey[A])
 final case class AeadLimits(encryptions: Long, bytes: Long, decryptFailures: Long):
   require(encryptions > 0 && bytes > 0 && decryptFailures > 0, "AEAD limits must be positive")
 object AeadLimits:
-  /** Conservative shared default; per-algorithm constants land with the implementation's KATs. */
+  /** The floor shared by the 96-bit-nonce tier (AES-GCM, GCM-SIV, CBC-HS): SP 800-38D section 8.3
+    * caps invocations at 2^32 for a random 96-bit IV; the forgery limit is the smallest across the
+    * tier (RFC 9001 section 6.6 Poly1305).
+    */
   val default: AeadLimits = AeadLimits(1L << 32, 1L << 50, 1L << 36)
+
+  /** ChaCha20-Poly1305 and XChaCha20-Poly1305: RFC 9001 section 6.6 lifts the confidentiality limit
+    * beyond any realistic message count (2^62); the forgery limit stays the Poly1305 bound.
+    */
+  val chaCha: AeadLimits = AeadLimits(1L << 62, 1L << 62, 1L << 36)
 
 /** Remaining budget, observable for PROACTIVE key update ahead of the limit (RFC 9001 section 6). */
 final case class AeadBudget(encryptions: Long, bytes: Long, decryptFailures: Long) derives CanEqual
@@ -1099,8 +1105,8 @@ final private class Budgeted[A <: AeadAlgorithm](engine: Cipher.Engine[A], spec:
 end Budgeted
 
 extension [A <: AeadAlgorithm](key: SecretKey[A])
-  /** Acquire a per-record [[Cipher]] with the default limits. */
-  def cipher(using Ciphering[A], AeadSpec[A]): Resource[IO, Cipher[A]] = key.cipher(AeadLimits.default)
+  /** Acquire a per-record [[Cipher]] with the algorithm's default limits. */
+  def cipher(using c: Ciphering[A], spec: AeadSpec[A]): Resource[IO, Cipher[A]] = key.cipher(spec.defaultLimits)
 
   /** Acquire a per-record [[Cipher]] with explicit limits. */
   def cipher(limits: AeadLimits)(using c: Ciphering[A], spec: AeadSpec[A]): Resource[IO, Cipher[A]] =

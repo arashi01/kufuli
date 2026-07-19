@@ -27,15 +27,15 @@ import kufuli.*
 import kufuli.password.*
 import kufuli.tests.support.*
 
-// Argon2id is the one family whose provider is backend-specific and not yet common across the real
-// backends (BouncyCastle on JVM; the Native libargon2 provider is pending), so its exact vector and
-// the PHC login flow are exercised here on the JVM only. Every other real-backend behaviour moved to
-// the cross-backend suites (RealVectorSuite, RealBackendSuite), which run on JVM and Native alike.
-class KatSuite extends munit.CatsEffectSuite:
+class PasswordVectorSuite extends munit.CatsEffectSuite:
 
   private def hex(b: Array[Byte]): String = b.map(x => f"$x%02x").mkString
 
-  test("Argon2id via BouncyCastle == OpenSSL 3.5 reference (pass=password, salt=16x02, m=512, t=3, p=1)") {
+  // The reference vector below, encoded to PHC on the JVM (BouncyCastle).
+  private val jvmProducedPhc =
+    "$argon2id$v=19$m=512,t=3,p=1$AgICAgICAgICAgICAgICAg$zJ3cVXILOjRG0mQdTE5AQYvj4vQBlDsS8e0/JD7VIXA"
+
+  test("Argon2id == OpenSSL 3.5 reference vector (pass=password, salt=16x02, m=512, t=3, p=1)") {
     val a = summon[Argon2]
     val params = Argon2Params.of(512, 3, 1).toOption.get
     for
@@ -67,4 +67,15 @@ class KatSuite extends munit.CatsEffectSuite:
            )
     yield ()
   }
-end KatSuite
+
+  test("password: a JVM-produced PHC hash verifies on this backend (hash-on-JVM/verify-here)") {
+    val stored = PasswordHash.of(jvmProducedPhc).toOption.get
+    val policy = Argon2Params.of(512, 3, 1).toOption.get
+    for
+      good <- "password".verify(stored, policy).absolve
+      _ <- check(good == PasswordCheck.Verified(None), "cross-backend verify")
+      bad <- "wrong".verify(stored, policy).absolve
+      _ <- check(bad == PasswordCheck.Rejected, "wrong password rejected cross-backend")
+    yield ()
+  }
+end PasswordVectorSuite

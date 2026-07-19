@@ -1,11 +1,15 @@
 import sbt.*
 
+import scala.sys.process.Process
+import scala.sys.process.ProcessLogger
+
 import snx.sbt.SNXImports.*
 
-/** kufuli's aws-lc provisioning recipe. sbt-snx is the mechanism (a pkg-config analogue); this is
-  * the recipe it carries, shipped so a consumer provisions the Native backend in one line:
+/** kufuli's native provisioning recipes. sbt-snx is the mechanism (a pkg-config analogue); these
+  * are the recipes it carries, shipped so a consumer provisions each Native backend in one line:
   * {{{
-  * SNX.libraries += KufuliNative.awsLc
+  * SNX.libraries += KufuliNative.awsLc      // core
+  * SNX.libraries += KufuliNative.argon2     // kufuli-password
   * }}}
   */
 object KufuliNative {
@@ -66,5 +70,59 @@ object KufuliNative {
           }
         )
         .options(closure)
+    )
+
+  /** The libargon2 release kufuli is verified against (matches the `vendor/phc-winner-argon2`
+    * submodule commit).
+    */
+  val argon2Tag: String = "20190702"
+
+  private val argon2Repository: String = "https://github.com/P-H-C/phc-winner-argon2.git"
+
+  /** Build libargon2 as a static archive with the reference Makefile.
+    *
+    * `NO_THREADS=1` computes every lane on the calling thread: the Argon2id output depends on the
+    * lane count, not on how many OS threads compute them, so the hash is byte-identical while the
+    * build gains no pthread dependency (and never spawns a thread on the musl static row).
+    * `OPTTARGET=` empties the Makefile's `-march`, so the archive is the compiler's default
+    * baseline rather than `-march=native` - reproducible and safe to cross-compile. sbt-snx
+    * requires a backend to write its outputs under the context staging directory, so the source is
+    * copied there and built out of the cached clone.
+    */
+  private def buildArgon2(context: BuildContext): Artefacts = {
+    val buildDir = context.staging / "build"
+    IO.copyDirectory(context.source, buildDir)
+    val command = Seq(
+      "make",
+      "-C",
+      buildDir.getAbsolutePath,
+      "libargon2.a",
+      s"CC=${context.clang.getAbsolutePath}",
+      "NO_THREADS=1",
+      "OPTTARGET="
+    )
+    context.log.info(command.mkString("snx argon2: ", " ", ""))
+    val logger = ProcessLogger(line => context.log.info(line), line => context.log.error(line))
+    if (Process(command).!(logger) != 0)
+      sys.error(s"snx: libargon2 build failed: ${command.mkString(" ")}")
+    val archive = buildDir / "libargon2.a"
+    if (!archive.isFile) sys.error(s"snx: libargon2 build produced no archive at ${archive.getAbsolutePath}")
+    Artefacts(Seq(archive), Seq(buildDir / "include"))
+  }
+
+  /** libargon2, built from source at a pinned tag and folded into the link.
+    *
+    * The name is `argon2`, both the rebind key and the `-l` name, so a consumer whose system
+    * already provides libargon2 can rebind `NativeLibrary("argon2")` to System instead of vendoring
+    * it. The Argon2id primitive is a frozen deterministic spec (RFC 9106), so a vendored provider
+    * agrees byte-for-byte with any other conformant one; `kufuli.password`'s PHC codec and policy
+    * sit in shared Scala above it.
+    */
+  val argon2: NativeLibrary =
+    NativeLibrary(
+      "argon2",
+      Vendored
+        .git(argon2Repository, argon2Tag)
+        .command("libargon2-static-ref-nothreads-1")(buildArgon2)
     )
 }

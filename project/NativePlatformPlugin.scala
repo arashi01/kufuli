@@ -29,6 +29,16 @@ object NativePlatformPlugin {
     */
   val provisionAwsLc: Seq[Setting[?]] = Seq(SNX.libraries += KufuliNative.awsLc % Test)
 
+  /** Declares that the Native `kufuli-password` backend needs `argon2` (libargon2). Exported in the
+    * NIR descriptor so a downstream consumer provisions it once with
+    * `SNX.libraries += KufuliNative.argon2`; a consumer whose system provides libargon2 rebinds the
+    * name to System instead.
+    */
+  val exportArgon2: Seq[Setting[?]] = Seq(SNX.libraries += NativeLibrary("argon2"))
+
+  /** Provisions libargon2 from source for the Native binding tests (test-scoped, as for aws-lc). */
+  val provisionArgon2: Seq[Setting[?]] = Seq(SNX.libraries += KufuliNative.argon2 % Test)
+
   /** Test-binary link settings: only musl can produce a fully static executable, and only when CI
     * asks.
     */
