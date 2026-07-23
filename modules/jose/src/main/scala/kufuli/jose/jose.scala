@@ -658,7 +658,7 @@ object COSEKey:
         else EffIO.fail(InvalidKey.Unsupported)
 end COSEKey
 
-/** Not implemented: the shapes compile but the operations return placeholder values. */
+/** Not implemented: the shapes compile, but every operation raises rather than returning a value. */
 opaque type JWE = String
 object JWE:
   enum Alg derives CanEqual:
